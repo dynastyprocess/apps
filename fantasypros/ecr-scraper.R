@@ -61,7 +61,7 @@ scrape_FP<-function(page){
                            Pos == 'DT' ~ 'DL',
                            TRUE ~ Pos
                            ),
-           Page = case_when(page == 'dynasty-overall'~ 'do', # where d = dynasty, r = redraft, w = weekly, o = overall, p = positional
+           ECRType = case_when(page == 'dynasty-overall'~ 'do', # where d = dynasty, r = redraft, w = weekly, o = overall, p = positional
                             page %in% c('ppr-cheatsheets','ros-ppr-overall',
                                         'idp-cheatsheets','ros-idp') ~ 'ro',
                             page %in% c('ppr-flex','idp') ~ 'wo',
@@ -73,38 +73,46 @@ scrape_FP<-function(page){
                             )
            ) %>% 
     mutate_at(vars(one_of('Age','Best','Worst','ECR','SD','Avg','Std Dev')),as.numeric) %>% 
-    mutate_at(vars(one_of('Page','Player','Pos','Team')),as.character) 
+    mutate_at(vars(one_of('ECRType','Player','Pos','Team')),as.character) 
   return(df_ecr)
 }
 
 vScrapeFP<-Vectorize(scrape_FP,SIMPLIFY = FALSE)
 
-# Actual Scrape ----
+# Scrape, clean, and pivot ----
 
 df_scrapelong<-FP_pages %>%
-  select(page) %>% 
-  mutate(data = vScrapeFP(page)) %>% 
+  select(FP_page = page,page_type = type) %>% 
+  mutate(data = vScrapeFP(FP_page)) %>% 
   hoist(data,
-        'Page' = 'Page', 'Player'='Player', 'ID' = 'ID', 
+        'ECRType' = 'ECRType', 'Player'='Player', 'ID' = 'ID', 
         'Pos'='Pos', 'Team'='Team','ECR'='Avg',
         'SD' = 'Std Dev','Best' = 'Best', 'Worst' = 'Worst') %>%
-  select(-data,-page) %>% 
+  select(-data) %>% 
   unnest(cols=names(.)) %>% 
-  mutate(scrapeDate = Sys.Date())
+  mutate(scrapeDate = Sys.Date(),
+         mergename = tolower(gsub('(-)|[[:punct:]]|( Jr)|( Sr)|( III)|( II)|( IV)','',Player))) %>% 
+  nest_join(teamIDs,by=c('Team'='spotrac')) %>% # cleans up teamnames to the MFL standard, because #teamMFL
+  hoist(teamIDs,'tm'='mfl') %>% 
+  select(-teamIDs) %>% 
+  filter(!(grepl("idp",page_type)&!(Pos %in% c('DL','LB','DB')))) %>%  # FILTER OUT if the page_type has the words idp in it AND the position is NOT in DL/LB/DB
+  filter(!(grepl("-lb",FP_page)&Pos!='LB')&!(grepl("-dl",FP_page)&Pos!='DL')&!(grepl("-db",FP_page)&Pos!='DB'))  # FILTER OUT extra IDP position listings
 
 df_scrapewide<-df_scrapelong %>% 
   pivot_longer(c('ECR','SD','Best','Worst')) %>% 
   filter(!is.na(Player)) %>% 
-  unite(col = 'Temp',Page,name,sep='') %>% 
-  pivot_wider(names_from = 'Temp',values_from = 'value',values_fn=list(value=min)) %>% 
-  mutate(scrapeDate = Sys.Date())
+  unite(col = 'Temp',ECRType,name,sep='') %>% 
+  select(-c(FP_page,page_type)) %>% 
+  pivot_wider(names_from = 'Temp',values_from = 'value')
 
+# Write to SQLite table ----
+         
 db_fp<-dbConnect(RSQLite::SQLite(),'fantasypros.sqlite')
-dbWriteTable(db_fp,'fp-wide',df_scrapewide)
-dbWriteTable(db_fp,'fp-long',df_scrapelong)
-dbDisconnect(db_fp)
 
-dbListFields(db_fp,'fp-wide')
+dbWriteTable(db_fp,'fp-wide',df_scrapewide,append = TRUE)
+dbWriteTable(db_fp,'fp-long',df_scrapelong,append = TRUE)
+
+dbDisconnect(db_fp)
 
 # # In case the WSIS/WSID box goes away, this code might be helpful later.
 #
