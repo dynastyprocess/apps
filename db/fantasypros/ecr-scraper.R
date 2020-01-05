@@ -13,7 +13,7 @@ teamIDs <- read.csv("teamIDs.csv",fileEncoding = 'UTF-8-BOM') # Hardcoded Team I
 
 # Determine list of FP pages to scrape: ----
 
-FP_pages<-read.csv('fantasypros-pages.csv',fileEncoding = 'UTF-8-BOM',na.strings = '')
+FP_pages<-read.csv('fantasypros/fantasypros-pages.csv',fileEncoding = 'UTF-8-BOM',na.strings = '')
 
 current_timeframe<-case_when(
   between(month(today()),10,12) | (month(today())==9 & day(today())>=10) ~ '3_inseason',
@@ -96,7 +96,9 @@ df_scrapelong<-FP_pages %>%
   hoist(teamIDs,'tm'='mfl') %>% 
   select(-teamIDs) %>% 
   filter(!(grepl("idp",page_type)&!(Pos %in% c('DL','LB','DB')))) %>%  # FILTER OUT if the page_type has the words idp in it AND the position is NOT in DL/LB/DB
-  filter(!(grepl("-lb",FP_page)&Pos!='LB')&!(grepl("-dl",FP_page)&Pos!='DL')&!(grepl("-db",FP_page)&Pos!='DB'))  # FILTER OUT extra IDP position listings
+  filter(!(grepl("-lb|lb-",FP_page)&Pos!='LB')&!(grepl("-dl|dl-",FP_page)&Pos!='DL')&!(grepl("-db|db-",FP_page)&Pos!='DB')) %>%   # FILTER OUT extra IDP position listings
+  filter(!(grepl("-rb|rb-",FP_page)&Pos!='RB')&!(grepl("-wr|wr-",FP_page)&Pos!='WR')&!(grepl("-qb|qb-",FP_page)&Pos!='QB')&!(grepl("-te|te-",FP_page)&Pos!='TE'))  # FILTER OUT extra offense position listings
+
 
 df_scrapewide<-df_scrapelong %>% 
   pivot_longer(c('ECR','SD','Best','Worst')) %>% 
@@ -107,7 +109,7 @@ df_scrapewide<-df_scrapelong %>%
 
 # Write to SQLite table ----
          
-db_fp<-dbConnect(RSQLite::SQLite(),'fantasypros.sqlite')
+db_fp<-dbConnect(RSQLite::SQLite(),'fantasypros/fantasypros.sqlite')
 
 dbWriteTable(db_fp,'fp-wide',df_scrapewide,append = TRUE)
 dbWriteTable(db_fp,'fp-long',df_scrapelong,append = TRUE)
