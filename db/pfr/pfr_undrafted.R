@@ -51,7 +51,8 @@ while (!is.na(offset)) {
     select(player = Player,career_from = From, career_end = To, allpro = AP1, probowl = PB, 
            career_av = AV, games = G, games_started = GS,id_pfr) %>% 
     filter(career_from!=1999) %>% 
-    mutate_at(vars(career_from,career_end,allpro,probowl,career_av,games,games_started),as.numeric)
+    mutate_at(vars(career_from,career_end,allpro,probowl,career_av,games,games_started),as.numeric) %>% 
+    mutate(scrape_date = Sys.Date())
   
   pfr_undrafted<-pfr_undrafted %>% 
     bind_rows(pfr_table)
@@ -62,6 +63,13 @@ while (!is.na(offset)) {
   
 }
 
+conn_srv<-dbConnect(RSQLite::SQLite(),'dynastyprocess.sqlite')
+
+dbRemoveTable(conn_srv,name = 'pfr_undrafted')
+
+dbWriteTable(conn_srv,pfr_undrafted, name = 'pfr_undrafted')
+
+dbDisconnect(conn_srv)
 
   
   
