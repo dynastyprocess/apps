@@ -1,6 +1,8 @@
 library(rvest)
 library(tidyverse)
 library(ratelimitr)
+library(DBI)
+library(RSQLite)
 
 # Ratelimit read_html to 100 pages per minute
 lim_readhtml<-limit_rate(read_html,rate(n = 100,period = 60))
