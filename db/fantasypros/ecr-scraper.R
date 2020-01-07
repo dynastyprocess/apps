@@ -109,10 +109,13 @@ df_scrapewide<-df_scrapelong %>%
 
 # Write to SQLite table ----
          
-db_fp<-dbConnect(RSQLite::SQLite(),'fantasypros/fantasypros.sqlite')
+db_fp<-dbConnect(RSQLite::SQLite(),'dynastyprocess.sqlite')
 
-dbWriteTable(db_fp,'fp-wide',df_scrapewide,append = TRUE)
-dbWriteTable(db_fp,'fp-long',df_scrapelong,append = TRUE)
+dbRemoveTable(db_fp,'fp-wide')
+dbRemoveTable(db_fp,'fp-long')
+
+dbWriteTable(db_fp,'fp_wide',df_scrapewide,append = TRUE)
+dbWriteTable(db_fp,'fp_long',df_scrapelong,append = TRUE)
 
 dbDisconnect(db_fp)
 
