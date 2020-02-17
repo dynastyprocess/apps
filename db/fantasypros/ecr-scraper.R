@@ -99,7 +99,6 @@ df_scrapelong<-FP_pages %>%
   filter(!(grepl("-lb|lb-",FP_page)&Pos!='LB')&!(grepl("-dl|dl-",FP_page)&Pos!='DL')&!(grepl("-db|db-",FP_page)&Pos!='DB')) %>%   # FILTER OUT extra IDP position listings
   filter(!(grepl("-rb|rb-",FP_page)&Pos!='RB')&!(grepl("-wr|wr-",FP_page)&Pos!='WR')&!(grepl("-qb|qb-",FP_page)&Pos!='QB')&!(grepl("-te|te-",FP_page)&Pos!='TE'))  # FILTER OUT extra offense position listings
 
-
 df_scrapewide<-df_scrapelong %>% 
   pivot_longer(c('ECR','SD','Best','Worst')) %>% 
   filter(!is.na(Player)) %>% 
@@ -110,9 +109,6 @@ df_scrapewide<-df_scrapelong %>%
 # Write to SQLite table ----
          
 db_fp<-dbConnect(RSQLite::SQLite(),'dynastyprocess.sqlite')
-
-dbRemoveTable(db_fp,'fp-wide')
-dbRemoveTable(db_fp,'fp-long')
 
 dbWriteTable(db_fp,'fp_wide',df_scrapewide,append = TRUE)
 dbWriteTable(db_fp,'fp_long',df_scrapelong,append = TRUE)

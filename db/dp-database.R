@@ -1,17 +1,18 @@
-#library(httr)
 library(tidyverse)
 library(jsonlite)
 library(rvest)
 library(here)
+library(DBI)
+library(RSQLite)
 
 options(stringsAsFactors = FALSE)
 
 setwd(here())
 
 # Hardcoded data files
-teamIDs<-read.csv("teamIDs.csv") #teamdb because am lazy to fix nomenclature
-stats2018<-read.csv("stats2018.csv") #stat-set built from NFLScrapR/PFR -> automation a project for 2019 offseason
-rookieadp<-read.csv("rookie-adp.csv") #built from mizelle (really, DLF) ADP for rookie pick value analysis
+teamIDs<-read.csv("teamIDs.csv",fileEncoding = "UTF-8-BOM") #teamdb because am lazy to fix nomenclature
+stats2018<-read.csv("stats2018.csv",fileEncoding = "UTF-8-BOM") #stat-set built from NFLScrapR/PFR -> automation a project for 2019 offseason
+rookieadp<-read.csv("rookie-adp.csv",fileEncoding = "UTF-8-BOM") #built from mizelle (really, DLF) ADP for rookie pick value analysis
 
 # RASathletic<-read.csv("ras-athletic.csv") #courtesy of @Mathbomb on Twitter
 # pfrIDs<-read.csv("PFR-IDs.csv") #originally done with linkify but now grabbing from the URLs
