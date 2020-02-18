@@ -1,0 +1,112 @@
+---
+title: "MFL Player Database"
+output: html_notebook
+---
+_Trying the notebook format out to encourage better commenting practices!_
+
+This script is designed to grab MFL's player database endpoint dating back to 2000 and write it to AWS - MFL was my introduction to APIs and is still my standard for completeness and accuracy. 
+
+
+```{r load libraries, echo = FALSE}
+library(jsonlite)
+library(tidyverse)
+library(furrr)
+library(janitor)
+library(DBI)
+library(odbc)
+library(lubridate)
+
+options(stringsAsFactors=FALSE)
+options(scipen = 999)
+
+plan(multiprocess)
+
+```
+
+This next chunk creates a list of seasons to grab - I'm going to first run it so that it grabs 2000-2019 and store that for historical purposes, then I'm going to set up the script to grab 2020's on a monthly basis in a later chunk.
+
+Experimenting with parallel processing via the furrr package!
+
+```{r, eval=FALSE}
+start_year <- 2000
+end_year <- 2019
+
+read_playerdb <- function(url) {
+  df <- read_json(url)$players$player %>%
+    tibble() %>%
+    unnest_wider(1) %>% 
+    filter(!(grepl("^TM|Coach|Off|Def|ST",position)))
+  
+  df
+}
+
+players <- tibble(season = c(start_year:end_year),
+                url = paste0("https://api.myfantasyleague.com/",season,
+                             "/export?TYPE=players&L=&APIKEY=&DETAILS=1&SINCE=&PLAYERS=&JSON=1"),
+                data = future_map(url,read_playerdb,.progress = TRUE)) %>% 
+  unnest_wider(data) %>% 
+  unnest(cols = c(position, name, id, team, draft_year, draft_team, stats_global_id, 
+    twitter_username, stats_id, cbs_id, fleaflicker_id, college, 
+    height, rotowire_id, jersey, weight, draft_round, draft_pick, 
+    birthdate, rotoworld_id, sportsdata_id, nfl_id, espn_id, 
+    status)) %>% 
+  mutate(birthdate = as.numeric(birthdate),
+    birthdate = as_datetime(birthdate),
+    birthdate = as_date(birthdate)) %>% 
+  rename(mfl_id = id) %>% 
+  select(-url,-status)
+
+
+```
+
+Next, connect to AWS and write it all to the database!
+
+```{r, eval = FALSE}
+aws_db <- dbConnect(odbc(),"dynastyprocess_db")
+
+dbWriteTable(aws_db,'mfl_players_history',players)
+
+dbDisconnect(aws_db)
+
+```
+
+
+Combine all of the steps above, turn off evaluation, and write to the database - overwriting the "current" mfl_players table in the database each run. Schedule a cron run once per month to grab rookie IDs where possible!
+
+```{r}
+year <- 2020
+
+read_playerdb <- function(url) {
+  df <- read_json(url)$players$player %>%
+    tibble() %>%
+    unnest_wider(1) %>% 
+    filter(!(grepl("^TM|Coach|Off|Def|ST",position)))
+  
+  df
+}
+
+players <- tibble(season = year,
+                url = paste0("https://api.myfantasyleague.com/",season,
+                             "/export?TYPE=players&L=&APIKEY=&DETAILS=1&SINCE=&PLAYERS=&JSON=1"),
+                data = map(url,read_playerdb)) %>% 
+  unnest_wider(data) %>% 
+  unnest(cols = c(position, name, id, team, draft_year, draft_team, stats_global_id, 
+    twitter_username, stats_id, cbs_id, fleaflicker_id, college, 
+    height, rotowire_id, jersey, weight, draft_round, draft_pick, 
+    birthdate, rotoworld_id, sportsdata_id, nfl_id, espn_id, 
+    status)) %>% 
+  mutate(birthdate = as.numeric(birthdate),
+    birthdate = as_datetime(birthdate),
+    birthdate = as_date(birthdate)) %>% 
+  rename(mfl_id = id) %>% 
+  select(-url,-status)
+
+aws_db <- dbConnect(odbc(),"dynastyprocess_db")
+
+dbWriteTable(aws_db,'mfl_players_current',players,overwrite=TRUE)
+
+dbDisconnect(aws_db)
+
+
+```
+
