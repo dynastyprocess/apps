@@ -6,8 +6,17 @@ library(here)
 library(stringr)
 library(RSQLite)
 library(DBI)
+library(janitor)
 
 setwd(here())
+
+# if(interactive()){ setwd(here::here())} else {
+#   current_path <-  dirname(getSrcDirectory()[1])
+#   setwd(dirname(current_path ))
+#   print(getwd())
+# }
+
+
 
 teamIDs <- read.csv("teamIDs.csv",fileEncoding = 'UTF-8-BOM') # Hardcoded Team IDs ----
 
@@ -97,21 +106,22 @@ df_scrapelong<-FP_pages %>%
   select(-teamIDs) %>% 
   filter(!(grepl("idp",page_type)&!(Pos %in% c('DL','LB','DB')))) %>%  # FILTER OUT if the page_type has the words idp in it AND the position is NOT in DL/LB/DB
   filter(!(grepl("-lb|lb-",FP_page)&Pos!='LB')&!(grepl("-dl|dl-",FP_page)&Pos!='DL')&!(grepl("-db|db-",FP_page)&Pos!='DB')) %>%   # FILTER OUT extra IDP position listings
-  filter(!(grepl("-rb|rb-",FP_page)&Pos!='RB')&!(grepl("-wr|wr-",FP_page)&Pos!='WR')&!(grepl("-qb|qb-",FP_page)&Pos!='QB')&!(grepl("-te|te-",FP_page)&Pos!='TE'))  # FILTER OUT extra offense position listings
+  filter(!(grepl("-rb|rb-",FP_page)&Pos!='RB')&!(grepl("-wr|wr-",FP_page)&Pos!='WR')&!(grepl("-qb|qb-",FP_page)&Pos!='QB')&!(grepl("-te|te-",FP_page)&Pos!='TE')) %>% 
+  clean_names()# FILTER OUT extra offense position listings
 
-df_scrapewide<-df_scrapelong %>% 
-  pivot_longer(c('ECR','SD','Best','Worst')) %>% 
-  filter(!is.na(Player)) %>% 
-  unite(col = 'Temp',ECRType,name,sep='') %>% 
-  select(-c(FP_page,page_type)) %>% 
-  pivot_wider(names_from = 'Temp',values_from = 'value')
+# df_scrapewide<-df_scrapelong %>% 
+#   pivot_longer(c('ecr','sd','best','worst')) %>% 
+#   filter(!is.na(Player)) %>% 
+#   unite(col = 'Temp',ecrtyp,name,sep='') %>% 
+#   select(-c(FP_page,page_type)) %>% 
+#   pivot_wider(names_from = 'Temp',values_from = 'value')
 
-# Write to SQLite table ----
+# Write to AWS DB ----
          
-db_fp<-dbConnect(RSQLite::SQLite(),'dynastyprocess.sqlite')
+db_fp<-dbConnect(odbc::odbc(),'dynastyprocess_db')
 
-dbWriteTable(db_fp,'fp_wide',df_scrapewide,append = TRUE)
-dbWriteTable(db_fp,'fp_long',df_scrapelong,append = TRUE)
+# dbWriteTable(db_fp,'fp_wide',df_scrapewide,append = TRUE)
+dbWriteTable(db_fp,'fp_ecr',df_scrapelong,append = TRUE)
 
 dbDisconnect(db_fp)
 
@@ -123,4 +133,3 @@ dbDisconnect(db_fp)
 #   tibble() %>% 
 #   transmute(Player = html_text(html_node(.,'.full-name')),
 #          Team = html_text(html_node(.,'.grey'))))
-
