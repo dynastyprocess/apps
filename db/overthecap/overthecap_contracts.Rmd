@@ -1,0 +1,75 @@
+---
+title: "OverTheCap Scraper"
+output: html_notebook
+---
+
+Scraping OverTheCap.com for salary information on a regular [weekly, I think?]. Hey, if it's good enough for Spotrac we might as well go to the source! 
+
+Setting up the script to run monthly so that an updated copy is maintained on the AWS server. There might be some use in an "contract history" database but I don't see how that's as useful for DynastyFF. My primary interest is in understanding FA years and AAV of actives. 
+
+
+```{r setup, echo = FALSE}
+library(rvest)
+library(tidyverse)
+library(janitor)
+library(DBI)
+library(here)
+
+options(stringsAsFactors = FALSE)
+options(scipen = 999)
+
+setwd(here())
+team_ids <- read_csv("teamIDs.csv")
+
+```
+
+Scrape OTC. At some point I might consider coming back to set up a user-agent string - but this one's gonna be pretty anonymous and non-intensive. 
+
+```{r}
+
+url_contracts <- "https://overthecap.com/contracts/"
+
+html_contracts <- read_html(url_contracts) %>% 
+  html_node(".sortable")
+
+team_id <- html_contracts %>% 
+  html_nodes("tbody tr") %>% 
+  html_attr("data-team") %>% 
+  tibble(otc = .) %>% 
+  left_join(team_ids,by = c('otc')) %>% 
+  select(team = mfl)
+
+player_id <- html_contracts %>% 
+  html_nodes(":nth-child(1) a") %>% 
+  html_attr('href') %>% 
+  tibble(otc_id = .) %>% 
+  filter(grepl("/player/",otc_id)) %>% 
+  transmute(otc_id = str_extract(otc_id,"([[:digit:]]+)/$"),
+            otc_id = str_remove(otc_id,"/$"))
+
+contracts <- html_contracts %>% 
+  html_table() %>% 
+  clean_names() %>%
+  select(-team) %>% 
+  bind_cols(player_id) %>% 
+  bind_cols(team_id) %>% 
+  mutate_at(vars(total_value,avg_year,total_guaranteed,avg_guarantee_year,percent_guaranteed),parse_number) %>% 
+  mutate_at(vars(total_value,avg_year,total_guaranteed,avg_guarantee_year),~./1000000) %>% 
+  mutate_at(vars(total_value,avg_year,total_guaranteed,avg_guarantee_year),round,digits=2) %>% 
+  mutate(percent_guaranteed = percent_guaranteed/100,
+         scrape_date = Sys.Date())
+
+
+
+```
+
+Write to AWS. Schedule I think is weekly, pending discussion with Joe. It's not a particularly intensive hit to OTC (just grabs the page once) - so I don't mind it being frequent. 
+
+```{r}
+aws_db <- dbConnect(odbc::odbc(),"dynastyprocess_db")
+
+dbWriteTable(aws_db,"overthecap_contracts",contracts, overwrite = TRUE)
+
+dbDisconnect(aws_db)
+```
+
