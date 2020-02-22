@@ -10,7 +10,7 @@ This script is designed to grab MFL's player database endpoint dating back to 20
 ```{r load libraries, echo = FALSE}
 library(jsonlite)
 library(tidyverse)
-library(furrr)
+# library(furrr)
 library(janitor)
 library(DBI)
 library(odbc)
@@ -18,8 +18,6 @@ library(lubridate)
 
 options(stringsAsFactors=FALSE)
 options(scipen = 999)
-
-plan(multiprocess)
 
 ```
 
@@ -39,6 +37,8 @@ read_playerdb <- function(url) {
   
   df
 }
+
+plan(multiprocess)
 
 players <- tibble(season = c(start_year:end_year),
                 url = paste0("https://api.myfantasyleague.com/",season,
@@ -72,6 +72,8 @@ dbDisconnect(aws_db)
 
 
 Combine all of the steps above, turn off evaluation, and write to the database - overwriting the "current" mfl_players table in the database each run. Schedule a cron run once per month to grab rookie IDs where possible!
+
+I'd probably come back to this script sometime next year when 2020 rolls over to 2021 and append 2020 to the "history" database then.
 
 ```{r}
 year <- 2020
