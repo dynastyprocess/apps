@@ -28,9 +28,7 @@ player_id <- html_contracts %>%
   html_nodes(":nth-child(1) a") %>% 
   html_attr('href') %>% 
   tibble(otc_id = .) %>% 
-  filter(grepl("/player/",otc_id)) %>% 
-  transmute(otc_id = str_extract(otc_id,"([[:digit:]]+)/$"),
-            otc_id = str_remove(otc_id,"/$"))
+  filter(grepl("/player/",otc_id))
 
 contracts <- html_contracts %>% 
   html_table() %>% 
