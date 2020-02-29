@@ -26,6 +26,16 @@ key <- tibble(ffcalculator = adp_types,
 
 years <- c(2010:2019)
 
+aws_db <- dbConnect(odbc::odbc(),"dynastyprocess_db")
+team_ids <- dbGetQuery(aws_db,"SELECT mfl,ffcalc FROM dp_teamids")
+dbDisconnect(aws_db)
+
+insert_mergename <- . %>%
+  mutate(merge_name = name) %>% 
+  mutate_at('merge_name',str_remove_all,"( Jr.)|( Sr.)|( III)|( II)|( IV)|(\\')|(\\.)")%>%
+  mutate_at('merge_name',str_squish) %>%
+  mutate_at('merge_name',tolower)
+
 plan(multisession)
 
 adp_data <- expand.grid(adp_type = adp_types,season = years) %>% 
@@ -35,12 +45,12 @@ adp_data <- expand.grid(adp_type = adp_types,season = years) %>%
   unnest_wider(data) %>% 
   unnest(cols = c(player_id, name, position, team, adp, adp_formatted, times_drafted, 
                   high, low, stdev, bye)) %>% 
-  select(season,adp_type = saved_type,player_id,name,position,team,adp,times_drafted,high,low,stdev)
+  insert_mergename() %>% 
+  left_join(team_ids,by = c('team'='ffcalc')) %>% 
+  mutate(team = mfl) %>% 
+  select(season,adp_type,ffcalculator_id = player_id,
+         name,merge_name,position,team,adp,times_drafted,high,low,stdev)
 
-aws_db <- dbConnect(odbc::odbc(),"dynastyprocess_db")
-
-dbWriteTable(aws_db,"ffcalculator_adp",adp_data,overwrite=TRUE)
-
-df <- dbGetQuery(aws_db,"SELECT * FROM ffcalculator_adp")
-
-dbDisconnect(aws_db)
+aws_db <- dbConnect(odbc::odbc(),"dynastyprocess_db") %T>% 
+  dbWriteTable("ffcalculator_adp",adp_data,overwrite=TRUE) %>% 
+  dbDisconnect()

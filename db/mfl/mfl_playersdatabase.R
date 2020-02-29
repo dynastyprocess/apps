@@ -27,6 +27,12 @@ insert_mergename <- . %>%
   mutate_at("merge_name",str_remove_all,"( Jr.)|( Sr.)|( III)|( II)|( IV)|(\\')|(\\.)")%>%
   mutate_at('merge_name',str_squish) %>%
   mutate_at('merge_name',tolower)
+
+insert_name <- . %>%
+  separate("name",into = c('last_name','first_name'),sep = ",",remove = TRUE) %>%
+  unite("name",first_name,last_name,sep = " ",remove = TRUE) %>% 
+  mutate_at("name",str_remove_all,"( Jr.)|( Sr.)|( III)|( II)|( IV)|(\\')|(\\.)")%>%
+  mutate_at('name',str_squish)
   
 players <- tibble(season = year,
                   url = paste0("https://api.myfantasyleague.com/",season,
@@ -48,11 +54,14 @@ players <- tibble(season = year,
          age = as.double(age)) %>% 
   rename(mfl_id = id) %>% 
   select(-url,-status) %>% 
-  insert_mergename()
+  insert_mergename() %>% 
+  insert_name()
 
 aws_db <- dbConnect(odbc(),"dynastyprocess_db")
 
-dbWriteTable(aws_db,'mfl_players_current',players,overwrite=TRUE)
+dbExecute(aws_db,'TRUNCATE TABLE mfl_players_current')
+
+dbAppendTable(aws_db,'mfl_players_current',players,overwrite=TRUE)
 
 dbDisconnect(aws_db)
 

@@ -12,9 +12,9 @@ suppressPackageStartupMessages({
 
 insert_mergename <- . %>%
   mutate(merge_name = full_name) %>% 
-  mutate_at(merge_name,str_remove_all,"( Jr.)|( Sr.)|( III)|( II)|( IV)|(\\')|(\\.)")%>%
-  mutate_at(merge_name,str_squish) %>%
-  mutate_at(merge_name,tolower)
+  mutate_at('merge_name',str_remove_all,"( Jr.)|( Sr.)|( III)|( II)|( IV)|(\\')|(\\.)")%>%
+  mutate_at('merge_name',str_squish) %>%
+  mutate_at('merge_name',tolower)
 
 sleeper <- GET('https://api.sleeper.app/v1/players/nfl') %>% 
   content(as = 'text') %>% 
@@ -30,7 +30,8 @@ sleeper_players <- sleeper %>%
   insert_mergename()
 
 dbConnect(odbc::odbc(),"dynastyprocess_db") %T>% 
-  dbWriteTable("sleeper_players",sleeper_players,overwrite=TRUE) %>% 
+  dbExecute("TRUNCATE TABLE sleeper_players") %T>% 
+  dbAppendTable("sleeper_players",sleeper_players) %>% 
   dbDisconnect()
 
 message(glue("Scraped Sleeper's players database at {Sys.time()} successfully!"))
