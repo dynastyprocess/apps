@@ -30,6 +30,12 @@ get_adp <- function(adp_type,adp_year){
 
 })
 
+insert_mergename <- . %>%
+  mutate(merge_name = name) %>% 
+  mutate_at(merge_name,str_remove_all,"( Jr.)|( Sr.)|( III)|( II)|( IV)|(\\')|(\\.)")%>%
+  mutate_at(merge_name,str_squish) %>%
+  mutate_at(merge_name,tolower)
+
 season <- c('2020')
 
 adp_data <- tibble(scrape_date = Sys.Date(),
@@ -41,7 +47,9 @@ adp_data <- tibble(scrape_date = Sys.Date(),
   unnest_wider(data) %>% 
   unnest(cols = c(player_id, name, position, team, adp, adp_formatted, times_drafted, 
                   high, low, stdev, bye)) %>% 
-  select(scrape_date,season,adp_type = adp_types,ffcalculator_id = player_id,name,position,team,adp,times_drafted,high,low,stdev)
+  select(scrape_date,season,adp_type = adp_types,ffcalculator_id = player_id,
+         name,position,team,adp,times_drafted,high,low,stdev) %>% 
+  insert_mergename()
 
 
 aws_db <- dbConnect(odbc::odbc(),"dynastyprocess_db")

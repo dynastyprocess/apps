@@ -13,6 +13,12 @@ setwd(here())
 
 suppressWarnings({team_ids <- read_csv("teamIDs.csv")})
 
+insert_mergename <- . %>%
+  mutate(merge_name = player) %>% 
+  mutate_at(merge_name,str_remove_all,"( Jr.)|( Sr.)|( III)|( II)|( IV)|(\\')|(\\.)")%>%
+  mutate_at(merge_name,str_squish) %>%
+  mutate_at(merge_name,tolower)
+
 url_contracts <- "https://overthecap.com/contracts/"
 
 html_contracts <- read_html(url_contracts) %>% 
@@ -41,7 +47,8 @@ contracts <- html_contracts %>%
   mutate_at(vars(total_value,avg_year,total_guaranteed,avg_guarantee_year),~./1000000) %>% 
   mutate_at(vars(total_value,avg_year,total_guaranteed,avg_guarantee_year),round,digits=2) %>% 
   mutate(percent_guaranteed = percent_guaranteed/100,
-         scrape_date = Sys.Date())
+         scrape_date = Sys.Date()) %>% 
+  insert_mergename()
 
 aws_db <- dbConnect(odbc::odbc(),"dynastyprocess_db")
 

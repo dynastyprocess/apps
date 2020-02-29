@@ -21,10 +21,6 @@ sleeper <- GET('https://api.sleeper.app/v1/players/nfl') %>%
   parse_json() %>% 
   tibble() %>% 
   unnest_wider(1)
-# 
-# sleeper <- read_json('https://api.sleeper.app/v1/players/nfl') %>% 
-#   tibble() %>% 
-#   unnest_wider(1)
 
 sleeper_players <- sleeper %>% 
   select(sleeper_id = player_id,fantasy_data_id,gsis_id,full_name,
