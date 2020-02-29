@@ -22,4 +22,4 @@ dbConnect(odbc::odbc(),"dynastyprocess_db") %T>%
   dbWriteTable("sleeper_players",sleeper_players,overwrite=TRUE) %>% 
   dbDisconnect()
 
-message(glue("Scraped Sleeper's players database at {Sys.time()} successfully!")
+message(glue("Scraped Sleeper's players database at {Sys.time()} successfully!"))
