@@ -10,7 +10,8 @@ options(scipen = 999)
 
 setwd(here())
 })
-team_ids <- read_csv("teamIDs.csv")
+
+suppressWarnings({team_ids <- read_csv("teamIDs.csv")})
 
 url_contracts <- "https://overthecap.com/contracts/"
 

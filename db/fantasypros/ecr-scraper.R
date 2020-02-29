@@ -1,3 +1,4 @@
+suppressPackageStartupMessages({
 library(rvest)
 library(tidyverse)
 library(magrittr)
@@ -10,6 +11,7 @@ library(DBI)
 library(janitor)
 
 setwd(here())
+})
 
 teamIDs <- read.csv("teamIDs.csv",fileEncoding = 'UTF-8-BOM') # Hardcoded Team IDs ----
 
@@ -107,7 +109,7 @@ df_scrapelong<-FP_pages %>%
          
 db_fp<-dbConnect(odbc::odbc(),'dynastyprocess_db')
 
-dbWriteTable(db_fp,'fp_ecr',df_scrapelong,append = TRUE)
+# dbWriteTable(db_fp,'fp_ecr',df_scrapelong,append = TRUE)
 
 dbDisconnect(db_fp)
 
