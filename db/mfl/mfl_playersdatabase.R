@@ -1,7 +1,6 @@
 suppressPackageStartupMessages({
   library(jsonlite)
   library(tidyverse)
-  # library(furrr)
   library(janitor)
   library(DBI)
   library(odbc)
@@ -10,8 +9,6 @@ suppressPackageStartupMessages({
   options(stringsAsFactors=FALSE)
   options(scipen = 999)
 })
-
-
 
 year <- 2020
 
@@ -24,6 +21,13 @@ read_playerdb <- function(url) {
   df
 }
 
+insert_mergename <- . %>%
+  separate("name",into = c('last_name','first_name'),sep = ",",remove = FALSE) %>%
+  unite("merge_name",first_name,last_name,sep = " ",remove = TRUE) %>% 
+  mutate_at("merge_name",str_remove_all,"( Jr.)|( Sr.)|( III)|( II)|( IV)|(\\')|(\\.)")%>%
+  mutate_at('merge_name',str_squish) %>%
+  mutate_at('merge_name',tolower)
+  
 players <- tibble(season = year,
                   url = paste0("https://api.myfantasyleague.com/",season,
                                "/export?TYPE=players&L=&APIKEY=&DETAILS=1&SINCE=&PLAYERS=&JSON=1"),
@@ -36,9 +40,15 @@ players <- tibble(season = year,
                   status)) %>% 
   mutate(birthdate = as.numeric(birthdate),
          birthdate = as_datetime(birthdate),
-         birthdate = as_date(birthdate)) %>% 
+         birthdate = as_date(birthdate),
+         scrape_date = Sys.Date(),
+         age = scrape_date - birthdate,
+         age = age/365.25,
+         age = round(age,digits = 1),
+         age = as.double(age)) %>% 
   rename(mfl_id = id) %>% 
-  select(-url,-status)
+  select(-url,-status) %>% 
+  insert_mergename()
 
 aws_db <- dbConnect(odbc(),"dynastyprocess_db")
 
