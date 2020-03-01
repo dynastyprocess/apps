@@ -2,7 +2,6 @@ library(rvest)
 library(tidyverse)
 library(ratelimitr)
 library(DBI)
-library(RSQLite)
 
 # Ratelimit read_html to 100 pages per minute
 lim_readhtml<-limit_rate(read_html,rate(n = 100,period = 60))
@@ -12,15 +11,17 @@ yearmin<-2000
 yearmax<-2019
 offset<-0
 
-teamIDs<-read.csv('teamIDs.csv')
+aws_db <- dbConnect(odbc::odbc(),"dynastyprocess_db")
+team_ids <- dbGetQuery(aws_db,"SELECT mfl,pfr FROM dp_teamids")
+dbDisconnect(aws_db)
 
 pfr_drafted<-data.frame()
 
 while (!is.na(offset)) {
   # Construct scraper loop
   
-  pfr_url<-paste0('https://www.pro-football-reference.com/play-index/draft-finder.cgi?request=1&year_min=',
-                  yearmin,'&year_max=',yearmax,'&show=all&order_by=default&offset=',offset) %>%
+  pfr_url<-glue('https://www.pro-football-reference.com/play-index/draft-finder.cgi?request=1&year_min={}
+                  yearmin}&year_max={yearmax}&show=all&order_by=default&offset={offset}') %>%
     lim_readhtml()
   
   # extract pfr ids from html attribute
@@ -72,10 +73,10 @@ while (!is.na(offset)) {
   
 }
 
-conn_srv<-dbConnect(RSQLite::SQLite(),'dynastyprocess.sqlite')
+conn_srv<-dbConnect(odbc::odbc(),'dynastyprocess_db')
 
-dbRemoveTable(conn_srv,name = 'pfr_drafted')
+# dbExecute(conn_srv,"TRUNCATE TABLE pfr_drafted")
 
-dbWriteTable(conn_srv,pfr_drafted, name = 'pfr_drafted')
+dbAppendTable(conn_srv,pfr_drafted, name = 'pfr_drafted')
 
 dbDisconnect(conn_srv)
