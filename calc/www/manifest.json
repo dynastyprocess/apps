@@ -1,1 +1,47 @@
-["{\n  \"name\": \"DynastyProcess Trade Calculator\",\n  \"short_name\": \"DP Calc\",\n  \"description\": \"The DynastyProcess Trade Calculator helps you analyze trades with unparalleled control and customization.\",\n  \"lang\": \"en-US\",\n  \"start_url\": \"https://apps.dynastyprocess.com/calc\",\n  \"display\": \"standalone\",\n  \"background_color\": \"black\",\n  \"theme_color\": \"black\",\n  \"icon\": [\n    {\n      \"src\": \"www/128x128.png\",\n      \"sizes\": \"128x128\",\n      \"type\": \"image/png\"\n    },\n    {\n      \"src\": \"www/180x180.png\",\n      \"sizes\": \"180x180\",\n      \"type\": \"image/png\"\n    },\n    {\n      \"src\": \"www/192x192.png\",\n      \"sizes\": \"192x192\",\n      \"type\": \"image/png\"\n    },\n    {\n      \"src\": \"www/512x512.png\",\n      \"sizes\": \"512x512\",\n      \"type\": \"image/png\"\n    },\n    {\n      \"src\": \"www/32x32.png\",\n      \"sizes\": \"32x32\",\n      \"type\": \"image/png\"\n    },\n    {\n      \"src\": \"www/16x16.png\",\n      \"sizes\": \"16x16\",\n      \"type\": \"image/png\"\n    }\n  ]\n}"]
+{
+  "name": "DynastyProcess Calculator",
+  "short_name": "DPCalc",
+  "description": "The DynastyProcess Trade Calculator helps you analyze trades with unparalleled control and customization",
+  "lang": "en-US",
+  "start_url": "https://apps.dynastyprocess.com/calc/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "icons/128x128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/144x144.png",
+      "sizes": "144x144",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/152x152.png",
+      "sizes": "152x152",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/180x180.png",
+      "sizes": "152x152",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/256x256.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
