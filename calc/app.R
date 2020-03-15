@@ -11,7 +11,8 @@ library(stringr)
 # library(hrbrthemes)
 
 # Read data from local ----
-players <- read_parquet("players.pdata")
+players_raw <- read_parquet("players.pdata") %>% 
+  mutate(player = paste0(name,", ",position," ",team))
 rookies_raw <- read_parquet("pick_values.pdata")
 
 ui <- f7Page( # f7Page setup and Init Options ----
@@ -136,21 +137,12 @@ background: transparent !important;
         tabName = "Analysis",
         icon = f7Icon('graph_circle_fill',old = FALSE),
         h1("Trade Analysis",style = 'text-align:center;'),
-        f7Card(div(f7Gauge('Score',type = 'semicircle', value = 30,
-                           borderBgColor = '#1b7837',
-                           borderColor = '#762a83',
-                           valueText = '20%',
-                           valueTextColor = '#1b7837',
-                           labelText = "in favour of Team B",
-                           # labelTextColor = 'white',
-                           labelFontSize = '18',
-                           # labelFontWeight = 'medium'
-        ),style = 'text-align:center;'),inset = TRUE),
+        f7Card(div(uiOutput('trade_gauge'),style = 'text-align:center;'),inset = TRUE),
         
-        f7Card(title = "Team A total: 24,400", inset = TRUE,
+        f7Card(title = textOutput('teamA_total'), inset = TRUE,
                DTOutput('teamA_values')
         ),
-        f7Card(title = "Team B total: 24,400", inset = TRUE,
+        f7Card(title = textOutput('teamB_total'), inset = TRUE,
                DTOutput('teamB_values')
         ),
         br(),
@@ -189,7 +181,7 @@ background: transparent !important;
   )) # end of UI tab ----
 
 server <- function(input, output, session) { # start of server ----
-  sever({
+  sever(
     tagList(
       h1("Disconnected"),
       p(em(randomjoke())),
@@ -199,19 +191,16 @@ server <- function(input, output, session) { # start of server ----
         class = "button button-raised",
         onClick = "location.reload();"
       )
-    )
+    ),
     bg_color = "#000"
-  })
+  )
 
   # Calculate player and pick values based on the slider inputs ----
-  
-  rookie_optimism <- 80/100  
-  futurerookie_factor <- 80/100
-  value_factor <- 0.0235
-  
+
   calculate_value <- function(df,value_factor){
     df %>% 
-      mutate(value = 10500 * exp(-value_factor * ecr))
+      mutate(value = 10500 * exp(-value_factor * ecr),
+             value = round(value))
   } 
   
   label_currentpicks <- function(df,leaguesize) {
@@ -276,8 +265,17 @@ server <- function(input, output, session) { # start of server ----
     label_currentpicks(parse_number(input$teams)) %>% 
     calculate_value(input$value_factor) %>% 
     add_futurepicks(input$future_factor,parse_number(input$teams)) %>% 
-    select(player = pick_label,position,value)
+    select(player = pick_label,value)
   })
+  
+  values <- reactive({
+    players_raw %>%  
+      calculate_value(input$value_factor) %>% 
+      select(player,age,value) %>% 
+      bind_rows(pickvalues()) %>% 
+      arrange(desc(value))
+  })
+  
   # Render team input fields ----
   
   output$teamAinput <- renderUI({
@@ -286,8 +284,8 @@ server <- function(input, output, session) { # start of server ----
                    multiple = TRUE,
                    expandInput = TRUE,
                    typeahead = FALSE,
-                   choices = glue("{players$name}, {players$position} {players$team}"),
-                   value = glue("{players$name}, {players$position} {players$team}")[sample(1:32,1)])})
+                   choices = values()$player,
+                   value = values()$player[sample(1:32,1)])})
   
   output$teamBinput <- renderUI({
     f7AutoComplete('players_teamB',
@@ -295,8 +293,25 @@ server <- function(input, output, session) { # start of server ----
                    multiple = TRUE,
                    expandInput = TRUE,
                    typeahead = FALSE,
-                   choices = glue("{players$name}, {players$position} {players$team}"),
-                   value = glue("{players$name}, {players$position} {players$team}")[sample(1:32,1)])})
+                   choices = values()$player,
+                   value = values()$player[sample(1:32,1)])})
+
+  # output$teamA_list <- output$teamB_list <- renderPrint(values()$player)
+  
+  
+    
+  # observe({
+  #   
+  #   hold_A <- input$players_teamA
+  #   hold_B <- input$players_teamB
+  #   
+  #   updateF7AutoComplete('players_teamA',
+  #                        choices = values()$player,
+  #                        value = hold_A)
+  #   updateF7AutoComplete('players_teamB',
+  #                        choices = values()$player,
+  #                        value = hold_B)
+  # })
   
   output$teamA_list <- renderUI({
     req(input$players_teamA)
@@ -318,11 +333,64 @@ server <- function(input, output, session) { # start of server ----
   
 
   # Results tab ----
+  
+  teamA_total <- reactive({
+    values() %>% 
+      filter(player %in% input$players_teamA) %>% 
+      summarise(Total = sum(value)) %>% 
+      pull(Total)
+  })
+  teamB_total <- reactive({
+    values() %>% 
+      filter(player %in% input$players_teamB) %>% 
+      summarise(Total = sum(value)) %>% 
+      pull(Total)
+  })
+  
+  output$trade_gauge <- renderUI({
+    
+    percentDiff <- if (teamA_total() > teamB_total())
+      {round(100*((teamA_total() - teamB_total())/teamB_total()))}
+      else if (teamA_total() < teamB_total())
+      {round(100*((teamB_total() - teamA_total())/teamA_total()))}
+      else
+      {0}
+    
+    gauge_value <- if(teamA_total() > teamB_total()){50+percentDiff/2} else {50-percentDiff/2}
+    
+    f7Gauge('score',type = 'semicircle', value = gauge_value,
+            borderBgColor = '#1b7837',
+            borderColor = '#762a83',
+            valueText = paste0(percentDiff,'%'),
+            valueTextColor = case_when(teamA_total() > teamB_total() ~ '#762a83',
+                                       teamA_total() < teamB_total() ~ '#1b7837',
+                                       teamA_total() == teamB_total() ~ '#ffffff'), 
+            labelText = case_when(teamA_total() > teamB_total() ~ 'in favour of Team A',
+                                       teamA_total() < teamB_total() ~ 'in favour of Team B',
+                                       teamA_total() == teamB_total() ~ 'Trade is equal!'),   
+            # labelText = "in favour of Team B",
+            # labelTextColor = 'white',
+            labelFontSize = '18',
+            # labelFontWeight = 'medium'
+    )
+    
+  })
+  
+  output$teamA_total <- renderText({
+    
+    paste("Team A total:",format(teamA_total(),big.mark = ','))
+
+  })
+  output$teamB_total <- renderText({
+
+    paste("Team B total:",format(teamB_total(),big.mark = ','))
+    
+  })
+  
   output$teamA_values <- renderDT({
-    players %>% 
-      mutate(Player = glue("{name}, {position} {team}")) %>% 
-      filter(Player %in% input$players_teamA) %>% 
-      select(Player, Age = age, ECR = ecr) %>%
+    values() %>% 
+      filter(player %in% input$players_teamA) %>% 
+      select(Player = player, Age = age, Value = value) %>%
       datatable(class = "compact row-border",
                 selection = 'none',
                 options = list(searching = FALSE,
@@ -334,12 +402,10 @@ server <- function(input, output, session) { # start of server ----
                                info = FALSE),
                 rownames = FALSE)
   })
-  
   output$teamB_values <- renderDT({
-    players %>% 
-      mutate(Player = glue("{name}, {position} {team}")) %>% 
-      filter(Player %in% input$players_teamB) %>% 
-      select(Player, Age = age, ECR = ecr) %>%
+    values() %>% 
+      filter(player %in% input$players_teamB) %>% 
+      select(Player = player, Age = age, Value = value) %>%
       datatable(class = "compact row-border",
                 selection = 'none',
                 options = list(searching = FALSE,
@@ -354,7 +420,7 @@ server <- function(input, output, session) { # start of server ----
   
   # values tab ----
   output$values <- renderDT({
-    pickvalues() %>% 
+    values() %>% 
       # select(Name = name, Pos = position, Team = team, Age = age, ECR = ecr) %>% 
       datatable(class = "compact row-border",
                 selection = 'none',
@@ -366,7 +432,9 @@ server <- function(input, output, session) { # start of server ----
                 rownames = FALSE)
   })
   
+  # show last updated ----
   
+  f7Toast(session,glue("ECR last updated {rookies_raw$update_date[[1]]}"),closeTimeout = 1000)
   
   
 } # end of server segment ----
