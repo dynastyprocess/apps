@@ -105,7 +105,7 @@ background: transparent !important;
                                            'Startup (Players Only)'))
                  
                ),
-               f7Slider('value_factor',"Valuation Factor",min = 0.0210,max = 0.0260,value = 0.0235,step = 0.0005,
+               f7Slider('value_factor',"Valuation Factor",min = 210,max = 260,value = 235,step = 5,
                         labels = tagList(f7Icon("square_stack_3d_up_fill", old = FALSE),
                                          f7Icon("star_circle_fill",old = FALSE))
                ),
@@ -198,8 +198,10 @@ server <- function(input, output, session) { # start of server ----
   # Calculate player and pick values based on the slider inputs ----
 
   calculate_value <- function(df,value_factor){
+    v_f <- value_factor/10000
+    
     df %>% 
-      mutate(value = 10500 * exp(-value_factor * ecr),
+      mutate(value = 10500 * exp(-v_f * ecr),
              value = round(value))
   } 
   
@@ -296,22 +298,19 @@ server <- function(input, output, session) { # start of server ----
                    choices = values()$player,
                    value = values()$player[sample(1:32,1)])})
 
-  # output$teamA_list <- output$teamB_list <- renderPrint(values()$player)
-  
-  
+  observeEvent({
+    input$teams
+    input$value_factor
+    input$future_factor
+    input$rookie_optimism
+  },
+  {
+    hold_A <- input$players_teamA
+    hold_B <- input$players_teamB
     
-  # observe({
-  #   
-  #   hold_A <- input$players_teamA
-  #   hold_B <- input$players_teamB
-  #   
-  #   updateF7AutoComplete('players_teamA',
-  #                        choices = values()$player,
-  #                        value = hold_A)
-  #   updateF7AutoComplete('players_teamB',
-  #                        choices = values()$player,
-  #                        value = hold_B)
-  # })
+    updateF7AutoComplete('players_teamA',value = hold_A)
+    updateF7AutoComplete('players_teamB',value = hold_B)
+  })
   
   output$teamA_list <- renderUI({
     req(input$players_teamA)
