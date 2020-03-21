@@ -324,7 +324,7 @@ server <- function(input, output, session) { # start of server ----
   
   # Calculate Actual Values
   
-  pickvalues <- reactive({
+  pickvalues <- eventReactive(input$calculate,{
     rookies_raw %>% 
       calc_currentrookies(input$rookie_optimism) %>% 
       label_currentpicks(parse_number(input$teams)) %>% 
@@ -333,7 +333,7 @@ server <- function(input, output, session) { # start of server ----
       select(player = pick_label,value)
   })
   
-  values <- reactive({
+  values <- eventReactive(input$calculate,{
     players_raw %>%  
       calculate_value(input$value_factor) %>% 
       select(player,age,value) %>% 
@@ -343,13 +343,13 @@ server <- function(input, output, session) { # start of server ----
 
   # Results tab ----
   
-  teamA_total <- reactive({
+  teamA_total <- eventReactive(input$calculate,{
     values() %>% 
       filter(player %in% input$players_teamA) %>% 
       summarise(Total = sum(value)) %>% 
       pull(Total)
   })
-  teamB_total <- reactive({
+  teamB_total <- eventReactive(input$calculate,{
     values() %>% 
       filter(player %in% input$players_teamB) %>% 
       summarise(Total = sum(value)) %>% 
@@ -425,6 +425,10 @@ server <- function(input, output, session) { # start of server ----
                                paging = FALSE,
                                info = FALSE),
                 rownames = FALSE)
+  })
+  
+  observeEvent(input$calculate,{
+    updateF7Tabs(session, id = 'tabs', selected = 'Analysis')
   })
   
   # values tab ----
