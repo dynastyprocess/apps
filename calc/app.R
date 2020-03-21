@@ -6,6 +6,7 @@ library(sever)
 library(arrow)
 library(DT)
 library(joker)
+library(magrittr)
 library(lubridate)
 library(stringr)
 # library(hrbrthemes)
@@ -74,6 +75,9 @@ background: transparent !important;
         icon = f7Icon('wand_stars',old = FALSE),
         active = TRUE,
         # img()
+        br(),
+        div(img(src = 'icons/128x128.png'),style = 'text-align:center;'),
+        # br(),
         h1("Main Inputs", style = "text-align:center"),
         
         uiOutput('teamAinput'),
@@ -163,10 +167,6 @@ background: transparent !important;
       f7Tab(tabName = "About", # about tab ----
         icon = f7Icon('info_circle_fill',old = FALSE),
         br(),
-        # h1('About',style = "text-align:center;"),
-        # f7Row(f7Col(img(src = "icons/128x128.png")),
-                 # f7Col(h1("DynastyProcess.com")),
-              # f7Col()),
         div(img(src = 'icons/128x128.png'),style = 'text-align:center;'),
         br(),
         f7Card(title = "About",
@@ -263,6 +263,27 @@ server <- function(input, output, session) { # start of server ----
     df %>% mutate(ecr = r_o*high_model + (1-r_o)*low_model)
   }
   
+  label_displaymode <- function(df,displaymode,leaguesize){
+    
+    l_s <- parse_number(leaguesize) + 0.001
+    
+    if(displaymode=='Normal'){return(df)}
+    
+    df1 <- df %>% 
+      filter(case_when(displaymode == 'Startup (Players Only)'~!is.na(position),
+                       displaymode == 'Startup (Players & Picks)'~ (!is.na(position)|grepl(year(Sys.Date()),player)))) %>% 
+      arrange(desc(value)) %>% 
+      rowid_to_column(var='pick') %>% 
+      mutate(startup_round = (pick %/% l_s)+1,
+             startup_pick = round(pick %% l_s,0),
+             startup_label = paste0("Startup Pick ",startup_round,".",str_sub(paste0(0,startup_pick),-2,-1))) %>% 
+      bind_rows(df) %>% 
+      mutate(player = coalesce(startup_label,player)) %>% 
+      arrange(desc(value),player)
+    
+    df1
+  }
+  
   # Calculate Names
   
   picknames <- reactive({
@@ -277,12 +298,11 @@ server <- function(input, output, session) { # start of server ----
   trade_names <- reactive({
     players_raw %>%  
       calculate_value(235) %>% 
-      select(player,age,value) %>% 
       bind_rows(picknames()) %>% 
+      label_displaymode(input$draft_type,input$teams) %>%
+      select(player,age,value) %>% 
       arrange(desc(value))
   })
-  
-
   
   # Render team input fields ----
   
@@ -336,9 +356,11 @@ server <- function(input, output, session) { # start of server ----
   values <- eventReactive(input$calculate,{
     players_raw %>%  
       calculate_value(input$value_factor) %>% 
-      select(player,age,value) %>% 
       bind_rows(pickvalues()) %>% 
-      arrange(desc(value))
+      label_displaymode(input$draft_type,input$teams) %>% 
+      select(player,age,value) %>%
+      arrange(desc(value)) #%T>%
+      # write_parquet('debug_values.pdata')
   })
 
   # Results tab ----
@@ -371,12 +393,14 @@ server <- function(input, output, session) { # start of server ----
             borderBgColor = '#1b7837',
             borderColor = '#762a83',
             valueText = paste0(percentDiff,'%'),
-            valueTextColor = case_when(teamA_total() > teamB_total() ~ '#762a83',
-                                       teamA_total() < teamB_total() ~ '#1b7837',
-                                       teamA_total() == teamB_total() ~ '#ffffff'), 
-            labelText = case_when(teamA_total() > teamB_total() ~ 'in favour of Team A',
-                                       teamA_total() < teamB_total() ~ 'in favour of Team B',
-                                       teamA_total() == teamB_total() ~ 'Trade is equal!'),   
+            valueTextColor = case_when(teamA_total() == teamB_total() ~ '#ffffff',
+                                       percentDiff <=5 ~ '#ffffff',
+                                       teamA_total() > teamB_total() ~ '#762a83',
+                                       teamA_total() < teamB_total() ~ '#1b7837',), 
+            labelText = case_when(teamA_total() == teamB_total() ~ 'Trade is equal!',
+                                  percentDiff <=5 ~ 'Trade is ~ fair!',
+                                  teamA_total() > teamB_total() ~ 'in favour of Team A',
+                                  teamA_total() < teamB_total() ~ 'in favour of Team B'),   
             # labelText = "in favour of Team B",
             # labelTextColor = 'white',
             labelFontSize = '18',
