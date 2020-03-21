@@ -144,10 +144,10 @@ background: transparent !important;
         f7Card(div(uiOutput('trade_gauge'),style = 'text-align:center;'),inset = TRUE),
         
         f7Card(title = textOutput('teamA_total'), inset = TRUE,
-               DTOutput('teamA_values')
+               uiOutput('teamA_values')
         ),
         f7Card(title = textOutput('teamB_total'), inset = TRUE,
-               DTOutput('teamB_values')
+               uiOutput('teamB_values')
         ),
         br(),
         br(),
@@ -159,6 +159,17 @@ background: transparent !important;
             icon = f7Icon('square_favorites_fill',old = FALSE),
             h1('Values - Quick Reference',style = 'text-align:center;'),
             f7Card(DTOutput('values')),
+            br(),
+            br(),
+            br(),
+            br(),
+      ),
+      f7Tab(tabName = "Values v2", # values tab ----
+            icon = f7Icon('square_favorites_fill',old = FALSE),
+            h1('Values - Quick Reference',style = 'text-align:center;'),
+            # f7Card(DTOutput('values')),
+            # 
+            uiOutput('values_v2'),
             br(),
             br(),
             br(),
@@ -420,35 +431,49 @@ server <- function(input, output, session) { # start of server ----
     
   })
   
-  output$teamA_values <- renderDT({
+  # output$teamA_values <- renderDT({
+  #   values() %>% 
+  #     filter(player %in% input$players_teamA) %>% 
+  #     select(Player = player, Age = age, Value = value) %>%
+  #     datatable(class = "compact row-border",
+  #               selection = 'none',
+  #               options = list(searching = FALSE,
+  #                              scrollX = TRUE,
+  #                              columnDefs = list(list(className = 'dt-left', targets = 0),
+  #                                                list(className = 'dt-right', targets = -1)),
+  #                              ordering = FALSE,
+  #                              paging = FALSE,
+  #                              info = FALSE),
+  #               rownames = FALSE)
+  # })
+  # output$teamB_values <- renderDT({
+  #   values() %>% 
+  #     filter(player %in% input$players_teamB) %>% 
+  #     select(Player = player, Age = age, Value = value) %>%
+  #     datatable(class = "compact row-border",
+  #               selection = 'none',
+  #               options = list(searching = FALSE,
+  #                              scrollX = TRUE,
+  #                              columnDefs = list(list(className = 'dt-left', targets = 0),
+  #                                                list(`text-align` = 'right', targets = c(1,2))),
+  #                              ordering = FALSE,
+  #                              paging = FALSE,
+  #                              info = FALSE),
+  #               rownames = FALSE)
+  # })
+  
+  output$teamA_values <- renderUI({
     values() %>% 
       filter(player %in% input$players_teamA) %>% 
       select(Player = player, Age = age, Value = value) %>%
-      datatable(class = "compact row-border",
-                selection = 'none',
-                options = list(searching = FALSE,
-                               scrollX = TRUE,
-                               columnDefs = list(list(className = 'dt-left', targets = 0),
-                                                 list(className = 'dt-right', targets = -1)),
-                               ordering = FALSE,
-                               paging = FALSE,
-                               info = FALSE),
-                rownames = FALSE)
+      shinyMobile:::f7Table(card = FALSE)
   })
-  output$teamB_values <- renderDT({
+  
+  output$teamB_values <- renderUI({
     values() %>% 
       filter(player %in% input$players_teamB) %>% 
       select(Player = player, Age = age, Value = value) %>%
-      datatable(class = "compact row-border",
-                selection = 'none',
-                options = list(searching = FALSE,
-                               scrollX = TRUE,
-                               columnDefs = list(list(className = 'dt-left', targets = 0),
-                                                 list(`text-align` = 'right', targets = c(1,2))),
-                               ordering = FALSE,
-                               paging = FALSE,
-                               info = FALSE),
-                rownames = FALSE)
+      shinyMobile:::f7Table(card = FALSE)
   })
   
   observeEvent(input$calculate,{
@@ -456,17 +481,23 @@ server <- function(input, output, session) { # start of server ----
   })
   
   # values tab ----
-  output$values <- renderDT({
+  # output$values <- renderDT({
+  #   values() %>% 
+  #     # select(Name = name, Pos = position, Team = team, Age = age, ECR = ecr) %>% 
+  #     datatable(class = "compact row-border",
+  #               selection = 'none',
+  #               options = list(searching = FALSE,
+  #                              ordering = FALSE,
+  #                              # columnDefs = list()
+  #                              paging = FALSE,
+  #                              info = FALSE),
+  #               rownames = FALSE)
+  # })
+  
+  output$values_v2 <- renderUI({
     values() %>% 
-      # select(Name = name, Pos = position, Team = team, Age = age, ECR = ecr) %>% 
-      datatable(class = "compact row-border",
-                selection = 'none',
-                options = list(searching = FALSE,
-                               ordering = FALSE,
-                               # columnDefs = list()
-                               paging = FALSE,
-                               info = FALSE),
-                rownames = FALSE)
+      select(Player = player, Age = age, Value = value) %>% 
+      shinyMobile:::f7Table(card = TRUE)
   })
   
   # show last updated ----
