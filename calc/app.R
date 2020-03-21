@@ -197,6 +197,8 @@ server <- function(input, output, session) { # start of server ----
 
   # Calculate player and pick values based on the slider inputs ----
 
+  # Helper functions
+  
   calculate_value <- function(df,value_factor){
     v_f <- value_factor/10000
     
@@ -261,22 +263,26 @@ server <- function(input, output, session) { # start of server ----
     df %>% mutate(ecr = r_o*high_model + (1-r_o)*low_model)
   }
   
-  pickvalues <- reactive({
+  # Calculate Names
+  
+  picknames <- reactive({
     rookies_raw %>% 
-    calc_currentrookies(input$rookie_optimism) %>% 
-    label_currentpicks(parse_number(input$teams)) %>% 
-    calculate_value(input$value_factor) %>% 
-    add_futurepicks(input$future_factor,parse_number(input$teams)) %>% 
-    select(player = pick_label,value)
+      calc_currentrookies(80) %>% 
+      label_currentpicks(parse_number(input$teams)) %>% 
+      calculate_value(235) %>% 
+      add_futurepicks(80,parse_number(input$teams)) %>% 
+      select(player = pick_label,value)
   })
   
-  values <- reactive({
+  trade_names <- reactive({
     players_raw %>%  
-      calculate_value(input$value_factor) %>% 
+      calculate_value(235) %>% 
       select(player,age,value) %>% 
-      bind_rows(pickvalues()) %>% 
+      bind_rows(picknames()) %>% 
       arrange(desc(value))
   })
+  
+
   
   # Render team input fields ----
   
@@ -286,8 +292,8 @@ server <- function(input, output, session) { # start of server ----
                    multiple = TRUE,
                    expandInput = TRUE,
                    typeahead = FALSE,
-                   choices = values()$player,
-                   value = values()$player[sample(1:32,1)])})
+                   choices = trade_names()$player,
+                   value = trade_names()$player[sample(1:32,1)])})
   
   output$teamBinput <- renderUI({
     f7AutoComplete('players_teamB',
@@ -295,23 +301,9 @@ server <- function(input, output, session) { # start of server ----
                    multiple = TRUE,
                    expandInput = TRUE,
                    typeahead = FALSE,
-                   choices = values()$player,
-                   value = values()$player[sample(1:32,1)])})
+                   choices = trade_names()$player,
+                   value = trade_names()$player[sample(1:32,1)])})
 
-  observeEvent({
-    input$teams
-    input$value_factor
-    input$future_factor
-    input$rookie_optimism
-  },
-  {
-    hold_A <- input$players_teamA
-    hold_B <- input$players_teamB
-    
-    updateF7AutoComplete('players_teamA',value = hold_A)
-    updateF7AutoComplete('players_teamB',value = hold_B)
-  })
-  
   output$teamA_list <- renderUI({
     req(input$players_teamA)
     
@@ -330,6 +322,24 @@ server <- function(input, output, session) { # start of server ----
     updateF7Panel(inputId = "panel_left", session = session)
   })
   
+  # Calculate Actual Values
+  
+  pickvalues <- reactive({
+    rookies_raw %>% 
+      calc_currentrookies(input$rookie_optimism) %>% 
+      label_currentpicks(parse_number(input$teams)) %>% 
+      calculate_value(input$value_factor) %>% 
+      add_futurepicks(input$future_factor,parse_number(input$teams)) %>% 
+      select(player = pick_label,value)
+  })
+  
+  values <- reactive({
+    players_raw %>%  
+      calculate_value(input$value_factor) %>% 
+      select(player,age,value) %>% 
+      bind_rows(pickvalues()) %>% 
+      arrange(desc(value))
+  })
 
   # Results tab ----
   
