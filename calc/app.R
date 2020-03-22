@@ -9,7 +9,8 @@ library(joker)
 library(magrittr)
 library(lubridate)
 library(stringr)
-# library(hrbrthemes)
+library(hrbrthemes)
+library(RColorBrewer)
 
 # Read data from local ----
 players_raw <- read_parquet("players.pdata") %>% 
@@ -18,7 +19,7 @@ rookies_raw <- read_parquet("pick_values.pdata")
 
 ui <- f7Page( # f7Page setup and Init Options ----
   title = "DynastyProcess Trade Calculator",
-  dark_mode = FALSE,
+  dark_mode = TRUE,
   manifest = "manifest.json",
   favicon = "favicon.ico",
   icon = '128x128.png',
@@ -31,9 +32,7 @@ ui <- f7Page( # f7Page setup and Init Options ----
   f7TabLayout( # f7TabLayout ----
     use_sever(),
     tags$head(tags$style(HTML("
-table td, table tr, table th{
-background: transparent !important;
-}
+table td, table tr, table th{background: transparent !important;}
                               "))),
     navbar = f7Navbar(title = "DynastyProcess.com", # Navbar ----
                       subtitle = "Trade Calculator",
@@ -80,14 +79,8 @@ background: transparent !important;
         # br(),
         h1("Main Inputs", style = "text-align:center"),
         
-        uiOutput('teamAinput'),
-        uiOutput('teamA_list'),
-        uiOutput('teamBinput'),
-        uiOutput('teamB_list'),
+        uiOutput('team_inputs'),
         
-        f7Button('calculate',"Calculate!",
-                 # rounded = TRUE, 
-                 shadow = TRUE),
         f7SmartSelect('calc_type',
                       label = "Trade Details", 
                       smart = FALSE,
@@ -141,28 +134,12 @@ background: transparent !important;
         tabName = "Analysis",
         icon = f7Icon('graph_circle_fill',old = FALSE),
         h1("Trade Analysis",style = 'text-align:center;'),
-        f7Card(div(uiOutput('trade_gauge'),style = 'text-align:center;'),inset = TRUE),
-        
-        f7Card(title = textOutput('teamA_total'), inset = TRUE,
-               DTOutput('teamA_values')
-        ),
-        f7Card(title = textOutput('teamB_total'), inset = TRUE,
-               DTOutput('teamB_values')
-        ),
-        br(),
-        br(),
-        br(),
-        br()
-        
+        uiOutput('results_tab')
       ),
       f7Tab(tabName = "Values", # values tab ----
             icon = f7Icon('square_favorites_fill',old = FALSE),
             h1('Values - Quick Reference',style = 'text-align:center;'),
-            f7Card(DTOutput('values')),
-            br(),
-            br(),
-            br(),
-            br(),
+            uiOutput('values')
       ),
       f7Tab(tabName = "About", # about tab ----
         icon = f7Icon('info_circle_fill',old = FALSE),
@@ -179,8 +156,10 @@ background: transparent !important;
       )
     )
   )) # end of UI tab ----
-
-server <- function(input, output, session) { # start of server ----
+# start of server ----
+server <- function(input, output, session) { 
+  
+  # Sever - cleans up the disconnect screen ----
   sever(
     tagList(
       h1("Disconnected"),
@@ -264,12 +243,11 @@ server <- function(input, output, session) { # start of server ----
   }
   
   label_displaymode <- function(df,displaymode,leaguesize){
-    
     l_s <- parse_number(leaguesize) + 0.001
     
     if(displaymode=='Normal'){return(df)}
     
-    df1 <- df %>% 
+    df %>%
       filter(case_when(displaymode == 'Startup (Players Only)'~!is.na(position),
                        displaymode == 'Startup (Players & Picks)'~ (!is.na(position)|grepl(year(Sys.Date()),player)))) %>% 
       arrange(desc(value)) %>% 
@@ -280,11 +258,9 @@ server <- function(input, output, session) { # start of server ----
       bind_rows(df) %>% 
       mutate(player = coalesce(startup_label,player)) %>% 
       arrange(desc(value),player)
-    
-    df1
   }
   
-  # Calculate Names
+  # Generate Names
   
   picknames <- reactive({
     rookies_raw %>% 
@@ -304,7 +280,7 @@ server <- function(input, output, session) { # start of server ----
       arrange(desc(value))
   })
   
-  # Render team input fields ----
+  # Render input fields ----
   
   output$teamAinput <- renderUI({
     f7AutoComplete('players_teamA',
@@ -338,6 +314,19 @@ server <- function(input, output, session) { # start of server ----
       f7List(inset = TRUE)
   })
   
+  output$team_inputs <- renderUI({
+    
+    div(
+    uiOutput('teamAinput'),
+    uiOutput('teamA_list'),
+    uiOutput('teamBinput'),
+    uiOutput('teamB_list'),
+    f7Button('calculate',"Calculate!",
+             # rounded = TRUE, 
+             shadow = TRUE)
+    )
+  })
+  
   observeEvent(input$toggle_inputhelp, {
     updateF7Panel(inputId = "panel_left", session = session)
   })
@@ -359,22 +348,33 @@ server <- function(input, output, session) { # start of server ----
       bind_rows(pickvalues()) %>% 
       label_displaymode(input$draft_type,input$teams) %>% 
       select(player,age,value) %>%
-      arrange(desc(value)) #%T>%
-      # write_parquet('debug_values.pdata')
+      arrange(desc(value))
   })
 
   # Results tab ----
   
-  teamA_total <- eventReactive(input$calculate,{
-    values() %>% 
-      filter(player %in% input$players_teamA) %>% 
-      summarise(Total = sum(value)) %>% 
+  teamA_values <- eventReactive(input$calculate,{
+    values() %>%
+      filter(player %in% input$players_teamA) %>%
+      select(Player = player, Age = age, Value = value) %>% 
+      arrange(desc(Value))
+  })
+  
+  teamB_values <- eventReactive(input$calculate,{
+    values() %>%
+      filter(player %in% input$players_teamB) %>%
+      select(Player = player, Age = age, Value = value) %>% 
+      arrange(desc(Value))
+  })
+  
+  teamA_total <- reactive({
+    teamA_values() %>% 
+      summarise(Total = sum(Value)) %>% 
       pull(Total)
   })
-  teamB_total <- eventReactive(input$calculate,{
-    values() %>% 
-      filter(player %in% input$players_teamB) %>% 
-      summarise(Total = sum(value)) %>% 
+  teamB_total <- reactive({
+    teamB_values() %>% 
+      summarise(Total = sum(Value)) %>% 
       pull(Total)
   })
   
@@ -401,29 +401,19 @@ server <- function(input, output, session) { # start of server ----
                                   percentDiff <=5 ~ 'Trade is ~ fair!',
                                   teamA_total() > teamB_total() ~ 'in favour of Team A',
                                   teamA_total() < teamB_total() ~ 'in favour of Team B'),   
-            # labelText = "in favour of Team B",
-            # labelTextColor = 'white',
-            labelFontSize = '18',
-            # labelFontWeight = 'medium'
+            labelFontSize = '18'
     )
-    
   })
   
   output$teamA_total <- renderText({
-    
     paste("Team A total:",format(teamA_total(),big.mark = ','))
-
   })
   output$teamB_total <- renderText({
-
     paste("Team B total:",format(teamB_total(),big.mark = ','))
-    
   })
   
-  output$teamA_values <- renderDT({
-    values() %>%
-      filter(player %in% input$players_teamA) %>%
-      select(Player = player, Age = age, Value = value) %>%
+  output$teamA_valuetable <- renderDT({
+  teamA_values() %>%
       datatable(class = "compact row-border",
                 selection = 'none',
                 options = list(searching = FALSE,
@@ -435,10 +425,8 @@ server <- function(input, output, session) { # start of server ----
                                info = FALSE),
                 rownames = FALSE)
   })
-  output$teamB_values <- renderDT({
-    values() %>%
-      filter(player %in% input$players_teamB) %>%
-      select(Player = player, Age = age, Value = value) %>%
+  output$teamB_valuetable <- renderDT({
+    teamB_values() %>%
       datatable(class = "compact row-border",
                 selection = 'none',
                 options = list(searching = FALSE,
@@ -451,13 +439,56 @@ server <- function(input, output, session) { # start of server ----
                 rownames = FALSE)
   })
   
+  output$trade_plot <- renderPlot({
 
+    # teamA_values <- read_parquet('debug_teamA.pdata')
+    # teamB_values <- read_parquet('debug_teamB.pdata')
+    
+    tibble(Team = c('Team A','Team B'),
+                 Players = list(teamA_values(),teamB_values())) %>%
+      unnest(Players) %>%
+      ggplot(aes(x = Team, y = Value, fill = Player)) +
+      theme_modern_rc() +
+      # scale_fill_viridis_d(guide = guide_legend(reverse = TRUE)) +
+      scale_fill_brewer(palette = 'Set2',
+                        guide = guide_legend(reverse=TRUE),
+                        direction = -1) +
+      theme(text = element_text(size=20),legend.position = 'bottom') +
+      geom_col()
+    
+  })
+  
+  output$results_tab <- renderUI({
+    
+    validate(need(input$calculate,message = "Please press Calculate to load the analysis!"))
+    
+    div(
+    f7Card(div(uiOutput('trade_gauge'),style = 'text-align:center;'),
+           inset = TRUE),
+    
+    f7Card(title = textOutput('teamA_total'), inset = TRUE,
+           DTOutput('teamA_valuetable')
+    ),
+    f7Card(title = textOutput('teamB_total'), inset = TRUE,
+           DTOutput('teamB_valuetable')
+    ),
+    f7Card(title = "Plot",inset = TRUE,
+           plotOutput('trade_plot')
+           ),
+    br(),
+    br(),
+    br(),
+    br(),
+    br()
+    )
+  })
+  
   observeEvent(input$calculate,{
     updateF7Tabs(session, id = 'tabs', selected = 'Analysis')
   })
   
   # values tab ----
-  output$values <- renderDT({
+  output$values_table <- renderDT({
     values() %>%
       # select(Name = name, Pos = position, Team = team, Age = age, ECR = ecr) %>%
       datatable(class = "compact row-border",
@@ -468,6 +499,19 @@ server <- function(input, output, session) { # start of server ----
                                paging = FALSE,
                                info = FALSE),
                 rownames = FALSE)
+  })
+  
+  output$values <- renderUI({
+    
+    validate(need(input$calculate,message = "Please press Calculate to load the Values table!"))  
+    
+    div(
+    f7Card(DTOutput('values_table')),
+    br(),
+    br(),
+    br(),
+    br(),
+    br())
   })
   
   # show last updated ----
