@@ -380,27 +380,28 @@ server <- function(input, output, session) {
       pull(Total)
   })
   
+  percent_diff <- reactive({if (teamA_total() > teamB_total())
+  {round(100*((teamA_total() - teamB_total())/teamB_total()))}
+  else if (teamA_total() < teamB_total())
+  {round(100*((teamB_total() - teamA_total())/teamA_total()))}
+  else
+  {0}
+  })
+  
   output$trade_gauge <- renderUI({
     
-    percentDiff <- if (teamA_total() > teamB_total())
-      {round(100*((teamA_total() - teamB_total())/teamB_total()))}
-      else if (teamA_total() < teamB_total())
-      {round(100*((teamB_total() - teamA_total())/teamA_total()))}
-      else
-      {0}
-    
-    gauge_value <- if(teamA_total() > teamB_total()){50+percentDiff/2} else {50-percentDiff/2}
+    gauge_value <- if(teamA_total() > teamB_total()){50+percent_diff()/2} else {50-percent_diff()/2}
     
     f7Gauge('score',type = 'semicircle', value = gauge_value,
             borderBgColor = '#1b7837',
             borderColor = '#762a83',
-            valueText = paste0(percentDiff,'%'),
+            valueText = paste0(percent_diff(),'%'),
             valueTextColor = case_when(teamA_total() == teamB_total() ~ '#ffffff',
-                                       percentDiff <=5 ~ '#ffffff',
+                                       percent_diff() <=5 ~ '#ffffff',
                                        teamA_total() > teamB_total() ~ '#762a83',
                                        teamA_total() < teamB_total() ~ '#1b7837',), 
             labelText = case_when(teamA_total() == teamB_total() ~ 'Trade is equal!',
-                                  percentDiff <=5 ~ 'Trade is ~ fair!',
+                                  percent_diff() <=5 ~ 'Trade is ~ fair!',
                                   teamA_total() > teamB_total() ~ 'in favour of Team A',
                                   teamA_total() < teamB_total() ~ 'in favour of Team B'),   
             labelFontSize = '18'
@@ -443,28 +444,40 @@ server <- function(input, output, session) {
   
   output$trade_plot <- render_mobile({
 
-    # teamA_values <- read_parquet('debug_teamA.pdata')
-    # teamB_values <- read_parquet('debug_teamB.pdata')
-    
     tibble(Team = c('Team A','Team B'),
                  Players = list(teamA_values(),teamB_values())) %>%
       unnest(Players) %>%
       mobile(aes(x = Team, y = Value, color = Player, adjust = stack)) %>% 
       mobile_bar() %>% 
-      mobile_interaction('bar-select')
-      
-      
-      
-      # 
-      # theme_modern_rc() +
-      # scale_fill_discrete(guide = guide_legend(reverse = TRUE))+
-      # # scale_fill_viridis_d(guide = guide_legend(reverse = TRUE)) +
-      # # scale_fill_discrete(palette = 'Set2',
-      # #                   guide = guide_legend(reverse=TRUE),
-      # #                   direction = -1) +
-      # theme(text = element_text(size=20),legend.position = 'bottom') +
-      # geom_col()
-      # 
+      mobile_legend(position = 'bottom')
+  })
+  
+  output$tradewizard_table <- renderDT({
+
+    trade_diff <- abs(teamA_total()-teamB_total())
+    
+    tradebalancer_table <- values() %>%
+      filter(value<=(trade_diff*1.05),value>=(trade_diff*0.95)) %>% 
+      datatable(class = "compact row-border",
+                selection = 'none',
+                options = list(searching = FALSE,
+                               scrollX = TRUE,
+                               columnDefs = list(list(className = 'dt-left', targets = 0),
+                                                 list(className = 'dt-right', targets = -1)),
+                               ordering = FALSE,
+                               paging = FALSE,
+                               info = FALSE),
+                rownames = FALSE)
+  })
+  
+  output$tradewizard <- renderUI({
+    
+    req(percent_diff()>5|is.infinite(percent_diff()))
+    
+    f7Card(title = "Trade Wizard", inset = TRUE,
+           "These players might help balance out the trade!",
+           DTOutput('tradewizard_table')
+    )
   })
   
   output$results_tab <- renderUI({
@@ -484,6 +497,7 @@ server <- function(input, output, session) {
     f7Card(title = "Plot",inset = TRUE,
            mobileOutput('trade_plot')
            ),
+    uiOutput('tradewizard'),
     br(),
     br(),
     br(),
