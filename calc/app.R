@@ -11,6 +11,8 @@ library(lubridate)
 library(stringr)
 library(hrbrthemes)
 library(RColorBrewer)
+library(mobileCharts)
+
 
 # Read data from local ----
 players_raw <- read_parquet("players.pdata") %>% 
@@ -439,7 +441,7 @@ server <- function(input, output, session) {
                 rownames = FALSE)
   })
   
-  output$trade_plot <- renderPlot({
+  output$trade_plot <- render_mobile({
 
     # teamA_values <- read_parquet('debug_teamA.pdata')
     # teamB_values <- read_parquet('debug_teamB.pdata')
@@ -447,15 +449,22 @@ server <- function(input, output, session) {
     tibble(Team = c('Team A','Team B'),
                  Players = list(teamA_values(),teamB_values())) %>%
       unnest(Players) %>%
-      ggplot(aes(x = Team, y = Value, fill = Player)) +
-      theme_modern_rc() +
-      # scale_fill_viridis_d(guide = guide_legend(reverse = TRUE)) +
-      scale_fill_brewer(palette = 'Set2',
-                        guide = guide_legend(reverse=TRUE),
-                        direction = -1) +
-      theme(text = element_text(size=20),legend.position = 'bottom') +
-      geom_col()
-    
+      mobile(aes(x = Team, y = Value, color = Player, adjust = stack)) %>% 
+      mobile_bar() %>% 
+      mobile_interaction('bar-select')
+      
+      
+      
+      # 
+      # theme_modern_rc() +
+      # scale_fill_discrete(guide = guide_legend(reverse = TRUE))+
+      # # scale_fill_viridis_d(guide = guide_legend(reverse = TRUE)) +
+      # # scale_fill_discrete(palette = 'Set2',
+      # #                   guide = guide_legend(reverse=TRUE),
+      # #                   direction = -1) +
+      # theme(text = element_text(size=20),legend.position = 'bottom') +
+      # geom_col()
+      # 
   })
   
   output$results_tab <- renderUI({
@@ -473,7 +482,7 @@ server <- function(input, output, session) {
            DTOutput('teamB_valuetable')
     ),
     f7Card(title = "Plot",inset = TRUE,
-           plotOutput('trade_plot')
+           mobileOutput('trade_plot')
            ),
     br(),
     br(),
