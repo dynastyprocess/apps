@@ -1,19 +1,20 @@
-library(shiny)
-library(shinyMobile)
-library(tidyverse)
-library(glue)
-library(sever)
+suppressPackageStartupMessages({
+# Data import
 library(arrow)
-library(DT)
-library(joker)
-library(magrittr)
+# Data manipulation
+library(tidyverse)
 library(lubridate)
-library(stringr)
-library(hrbrthemes)
-library(RColorBrewer)
-library(mobileCharts)
-
-
+library(glue)
+library(magrittr)
+# Shiny
+library(shiny)
+library(shinyMobile) # tanho63/shinymobile
+library(DT)
+library(mobileCharts) # rinterface/shinymobile
+library(sever) # johncoene/sever
+library(joker) # tanho63/joker
+})
+  
 # Read data from local ----
 players_raw <- read_parquet("players.pdata") %>% 
   mutate(player = paste0(name,", ",position," ",team))
@@ -33,9 +34,7 @@ ui <- f7Page( # f7Page setup and Init Options ----
   ),
   f7TabLayout( # f7TabLayout ----
     use_sever(),
-    tags$head(tags$style(HTML("
-table td, table tr, table th{background: transparent !important;}
-                              "))),
+    tags$head(tags$style(HTML("table td, table tr, table th{background: transparent !important;}"))),
     navbar = f7Navbar(title = "DynastyProcess.com", # Navbar ----
                       subtitle = "Trade Calculator",
                       # left_panel = TRUE,
@@ -63,6 +62,12 @@ table td, table tr, table th{background: transparent !important;}
                         f7Block(inset = TRUE,"Adjusts between our Perfect Knowledge and Hit Rate algorithms for valuing rookie picks.")),
         f7AccordionItem(title = "Future Pick Factor",
                         f7Block(inset = TRUE,"Adjusts value of future rookie picks."))
+      ),
+      h3("Hints",style="text-align:center;"),
+      f7Accordion(
+        f7AccordionItem(title = "Faster searching",
+                        f7Block(inset = TRUE,
+                                "You can pull up a list of all players by entering a ' , ' and all picks by entering a ' . ' - this is helpful for quickly scrolling through the list! \n")),
       )
     )
     ),
@@ -75,10 +80,8 @@ table td, table tr, table th{background: transparent !important;}
         tabName = "Inputs",
         icon = f7Icon('wand_stars',old = FALSE),
         active = TRUE,
-        # img()
         br(),
         div(img(src = 'icons/128x128.png'),style = 'text-align:center;'),
-        # br(),
         h1("Main Inputs", style = "text-align:center"),
         
         uiOutput('team_inputs'),
@@ -179,7 +182,6 @@ server <- function(input, output, session) {
   # Calculate player and pick values based on the slider inputs ----
 
   # Helper functions
-  
   calculate_value <- function(df,value_factor){
     v_f <- value_factor/10000
     
@@ -262,26 +264,26 @@ server <- function(input, output, session) {
       arrange(desc(value),player)
   }
   
-  # Generate Names
+  # Calculate Actual Values
   
-  picknames <- reactive({
+  pickvalues <- reactive({
     rookies_raw %>% 
-      calc_currentrookies(80) %>% 
+      calc_currentrookies(input$rookie_optimism) %>% 
       label_currentpicks(parse_number(input$teams)) %>% 
-      calculate_value(235) %>% 
-      add_futurepicks(80,parse_number(input$teams)) %>% 
+      calculate_value(input$value_factor) %>% 
+      add_futurepicks(input$future_factor,parse_number(input$teams)) %>% 
       select(player = pick_label,value)
   })
   
-  trade_names <- reactive({
+  values <- reactive({
     players_raw %>%  
-      calculate_value(235) %>% 
-      bind_rows(picknames()) %>% 
-      label_displaymode(input$draft_type,input$teams) %>%
-      select(player,age,value) %>% 
-      arrange(desc(value))
+      calculate_value(input$value_factor) %>% 
+      bind_rows(pickvalues()) %>% 
+      label_displaymode(input$draft_type,input$teams) %>% 
+      select(Player = player,Age = age,Value = value) %>%
+      arrange(desc(Value))
   })
-  
+
   # Render input fields ----
   
   output$teamAinput <- renderUI({
@@ -290,8 +292,8 @@ server <- function(input, output, session) {
                    multiple = TRUE,
                    expandInput = TRUE,
                    typeahead = FALSE,
-                   choices = trade_names()$player,
-                   value = trade_names()$player[sample(1:32,1)])})
+                   choices = values()$Player,
+                   value = values()$Player[sample(1:32,1)])})
   
   output$teamBinput <- renderUI({
     f7AutoComplete('players_teamB',
@@ -299,8 +301,8 @@ server <- function(input, output, session) {
                    multiple = TRUE,
                    expandInput = TRUE,
                    typeahead = FALSE,
-                   choices = trade_names()$player,
-                   value = trade_names()$player[sample(1:32,1)])})
+                   choices = values()$Player,
+                   value = values()$Player[sample(1:32,1)])})
 
   output$teamA_list <- renderUI({
     req(input$players_teamA)
@@ -333,9 +335,18 @@ server <- function(input, output, session) {
     updateF7Panel(inputId = "panel_left", session = session)
   })
   
+  observeEvent(values(),{
+    
+    holdA <- input$players_teamA
+    holdB <- input$players_teamB
+    
+    updateF7AutoComplete('players_teamA',value = holdA)
+    updateF7AutoComplete('players_teamB',value = holdB)
+  })
+  
   # Calculate Actual Values
   
-  pickvalues <- eventReactive(input$calculate,{
+  pickvalues <- reactive({
     rookies_raw %>% 
       calc_currentrookies(input$rookie_optimism) %>% 
       label_currentpicks(parse_number(input$teams)) %>% 
@@ -344,28 +355,26 @@ server <- function(input, output, session) {
       select(player = pick_label,value)
   })
   
-  values <- eventReactive(input$calculate,{
+  values <- reactive({
     players_raw %>%  
       calculate_value(input$value_factor) %>% 
       bind_rows(pickvalues()) %>% 
       label_displaymode(input$draft_type,input$teams) %>% 
-      select(player,age,value) %>%
-      arrange(desc(value))
+      select(Player = player,Age = age,Value = value) %>%
+      arrange(desc(Value))
   })
 
   # Results tab ----
   
   teamA_values <- eventReactive(input$calculate,{
     values() %>%
-      filter(player %in% input$players_teamA) %>%
-      select(Player = player, Age = age, Value = value) %>% 
+      filter(Player %in% input$players_teamA) %>%
       arrange(desc(Value))
   })
   
   teamB_values <- eventReactive(input$calculate,{
     values() %>%
-      filter(player %in% input$players_teamB) %>%
-      select(Player = player, Age = age, Value = value) %>% 
+      filter(Player %in% input$players_teamB) %>%
       arrange(desc(Value))
   })
   
@@ -408,16 +417,23 @@ server <- function(input, output, session) {
     )
   })
   
-  output$teamA_total <- renderText({
-    paste("Team A total:",format(teamA_total(),big.mark = ','))
-  })
-  output$teamB_total <- renderText({
-    paste("Team B total:",format(teamB_total(),big.mark = ','))
-  })
+  output$teamA_total <- renderText({ paste("Team A total:",format(teamA_total(),big.mark = ',')) })
+  output$teamB_total <- renderText({ paste("Team B total:",format(teamB_total(),big.mark = ',')) })
+  
+  value_container <- withTags(
+    table(class = "compact row-border",
+          thead(tr(
+            th(style="text-align:left;","Player"),
+            th(style="text-align:right;padding-right:3px;","Age"),
+            th(style='text-align:right;padding-right:3px;',"Value")
+          ))
+          )
+    )
   
   output$teamA_valuetable <- renderDT({
   teamA_values() %>%
       datatable(class = "compact row-border",
+                container = value_container,
                 selection = 'none',
                 options = list(searching = FALSE,
                                scrollX = TRUE,
@@ -431,6 +447,7 @@ server <- function(input, output, session) {
   output$teamB_valuetable <- renderDT({
     teamB_values() %>%
       datatable(class = "compact row-border",
+                container = value_container,
                 selection = 'none',
                 options = list(searching = FALSE,
                                scrollX = TRUE,
@@ -450,6 +467,7 @@ server <- function(input, output, session) {
       mobile(aes(x = Team, y = Value, color = Player, adjust = stack)) %>% 
       mobile_bar() %>% 
       mobile_legend(position = 'bottom')
+    
   })
   
   output$tradewizard_table <- renderDT({
@@ -457,8 +475,9 @@ server <- function(input, output, session) {
     trade_diff <- abs(teamA_total()-teamB_total())
     
     tradebalancer_table <- values() %>%
-      filter(value<=(trade_diff*1.05),value>=(trade_diff*0.95)) %>% 
+      filter(Value<=(trade_diff*1.05),Value>=(trade_diff*0.95)) %>% 
       datatable(class = "compact row-border",
+                container = value_container,
                 selection = 'none',
                 options = list(searching = FALSE,
                                scrollX = TRUE,
@@ -494,7 +513,7 @@ server <- function(input, output, session) {
     f7Card(title = textOutput('teamB_total'), inset = TRUE,
            DTOutput('teamB_valuetable')
     ),
-    f7Card(title = "Plot",inset = TRUE,
+    f7Card(title = "Trade Plot",inset = TRUE,
            mobileOutput('trade_plot')
            ),
     uiOutput('tradewizard'),
@@ -513,8 +532,8 @@ server <- function(input, output, session) {
   # values tab ----
   output$values_table <- renderDT({
     values() %>%
-      # select(Name = name, Pos = position, Team = team, Age = age, ECR = ecr) %>%
       datatable(class = "compact row-border",
+                container = value_container,
                 selection = 'none',
                 options = list(searching = FALSE,
                                ordering = FALSE,
