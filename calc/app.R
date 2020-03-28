@@ -155,7 +155,26 @@ ui <- f7Page( # f7Page setup and Init Options ----
         includeMarkdown('about.md')
         ),
         br(),
-        f7Card(title = "More by DynastyProcess:"),
+        f7Card(title = "More by DynastyProcess:",
+               f7List(inset = TRUE,
+                      f7ListItem(title = "Desktop Version",
+                                 url = "https://apps.dynastyprocess.com/calculator",
+                                 media = f7Icon('number_circle_fill',old = FALSE)),
+                      f7ListItem(title = "Crystal Ball",
+                                 media = f7Icon('moon_circle_fill',old = FALSE),
+                                 url = "https://apps.dynastyprocess.com/crystalball"),
+                      f7ListItem(title = "Twitter",
+                                 media = f7Icon('logo_twitter',old = FALSE),
+                                 url = "https://www.twitter.com/dynastyprocess"),
+                      f7ListItem(title = "Data Repository",
+                                 media = f7Icon('archivebox_fill',old = FALSE),
+                                 url = "https://www.github.com/tanho63/dynastyprocess"),
+                      f7ListItem(title = "Main Site",
+                                 media = f7Icon('waveform_circle_fill',old = FALSE),
+                                 url="https://dynastyprocess.com")
+                      )
+               ),
+        
         br(),
         f7Card(title = "Popular Players")
       )
