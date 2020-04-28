@@ -1,185 +1,193 @@
 suppressPackageStartupMessages({
-# Data import
-library(arrow)
-# Data manipulation
-library(tidyverse)
-library(lubridate)
-library(glue)
-library(magrittr)
-# Shiny
-library(shiny)
-library(shinyMobile) # tanho63/shinymobile
-library(DT)
-library(mobileCharts) # rinterface/shinymobile
-library(sever) # johncoene/sever
-library(joker) # tanho63/joker
+  # Data import
+  library(arrow)
+  # Data manipulation
+  library(tidyverse)
+  library(lubridate)
+  library(glue)
+  library(magrittr)
+  # Shiny
+  library(shiny)
+  library(shinyMobile) # tanho63/shinymobile
+  library(DT)
+  library(mobileCharts) # rinterface/shinymobile
+  library(sever) # johncoene/sever
+  library(joker) # tanho63/joker
 })
-  
+
 # Read data from local ----
-players_raw <- read_parquet("players.pdata") %>% 
-  mutate(player = paste0(name,", ",position," ",team))
-rookies_raw <- read_parquet("pick_values.pdata")
+players_raw <- read.csv("https://raw.githubusercontent.com/tanho63/dynastyprocess/master/files/values-players.csv") %>% 
+  mutate(player = paste0(player,", ",pos," ",team))
+rookies_raw <- read.csv("https://raw.githubusercontent.com/tanho63/dynastyprocess/master/files/values-picks.csv") %>% 
+  filter(str_detect(player,'2020 Pick')) %>% 
+  rownames_to_column(var = 'pick') %>% 
+  mutate(pick=as.numeric(pick))
+
 
 ui <- f7Page( # f7Page setup and Init Options ----
-  title = "DynastyProcess Trade Calculator",
-  dark_mode = TRUE,
-  manifest = "manifest.json",
-  favicon = "favicon.ico",
-  icon = '128x128.png',
-  init = f7Init(
-    skin = 'md',
-    theme = 'dark',
-    color = 'pink',
-    tapHold = FALSE
-  ),
-  f7TabLayout( # f7TabLayout ----
-    use_sever(),
-    tags$head(tags$style(HTML("table td, table tr, table th{background: transparent !important;}"))),
-    navbar = f7Navbar(title = "DynastyProcess.com", # Navbar ----
-                      subtitle = "Trade Calculator",
-                      # left_panel = TRUE,
-                      # bigger = TRUE
-                      hairline = TRUE
-    ),
-    panels = tagList(f7Panel( # Sidebar panels (currently just a help panel) ---- 
-      inputId = "panel_left",
-      title = "Trade Calculator Help",
-      side = "left",
-      theme = "light",
-      effect = "cover",
-      h3("Inputs",style = "text-align:center;"),
-      f7Accordion(
-        f7AccordionItem(title = "QB Type",
-                        f7Block(inset = TRUE,
-                                "Toggles between the base FantasyPros 1QB values and our algorithm-generated 2QB values.")),
-        f7AccordionItem(title = "League Size",
-                        f7Block("Renames rookie and startup selections. Does not adjust values, you'll need to tweak the Valuation Factor for that."),inset = TRUE),
-        f7AccordionItem(title = "Display Mode",
-                        f7Block(inset = TRUE,"Adds labeling so that you can assess the value of startup pick trades, and can also include placeholder picks for a separate rookie draft.")),
-        f7AccordionItem(title = "Valuation Factor",
-                        f7Block(inset = TRUE,"Tunes how star players are valued relative to bench players, so that you can tweak values for league size/scoring, market preferences, and personal strategy.")),
-        f7AccordionItem(title = "Rookie Pick Optimism",
-                        f7Block(inset = TRUE,"Adjusts between our Perfect Knowledge and Hit Rate algorithms for valuing rookie picks.")),
-        f7AccordionItem(title = "Future Pick Factor",
-                        f7Block(inset = TRUE,"Adjusts value of future rookie picks."))
-      ),
-      h3("Hints",style="text-align:center;"),
-      f7Accordion(
-        f7AccordionItem(title = "Faster searching",
-                        f7Block(inset = TRUE,
-                                "You can pull up a list of all players by entering a ' , ' and all picks by entering a ' . ' - this is helpful for quickly scrolling through the list! \n")),
-      )
-    )
-    ),
-    appbar = NULL,
-    f7Tabs( # Main tabs ----
-      # swipeable = TRUE,
-      # animated = FALSE,
-      id = 'tabs',
-      f7Tab( # input tab ----
-        tabName = "Inputs",
-        icon = f7Icon('wand_stars',old = FALSE),
-        active = TRUE,
-        br(),
-        div(img(src = 'icons/128x128.png'),style = 'text-align:center;'),
-        h1("Main Inputs", style = "text-align:center"),
-        
-        uiOutput('team_inputs'),
-        
-        f7SmartSelect('calc_type',
-                      label = "Trade Details", 
-                      smart = FALSE,
-                      choices = c("I'm considering this trade",
-                                  "I've received this trade offer",
-                                  "I've completed this trade")),
-        f7Card(title = 'Customize Value Settings',
-               f7Row(
-                 f7SmartSelect('qb_type',label = 'QB Type',choices = c('1QB','2QB/SF')),
-                 f7SmartSelect('teams',
-                               label = 'Teams',
-                               choices = glue("{seq(6,24,2)} teams"),
-                               selected = "12 teams"
-                 ),
-                 f7SmartSelect('draft_type',
-                               label = "Display Mode",
-                               choices = c('Normal',
-                                           'Startup (Players & Picks)',
-                                           'Startup (Players Only)'))
-                 
-               ),
-               f7Slider('value_factor',"Valuation Factor",min = 210,max = 260,value = 235,step = 5,
-                        labels = tagList(f7Icon("square_stack_3d_up_fill", old = FALSE),
-                                         f7Icon("star_circle_fill",old = FALSE))
-               ),
-               f7Slider('rookie_optimism','Rookie Optimism',
-                        min = 0,max = 100,value = 80,step = 5,
-                        labels = tagList(
-                          f7Icon("bolt_slash_fill",old = FALSE),
-                          f7Icon("bolt_fill",old = FALSE)
-                        )),
-               f7Slider('future_factor','Future Pick Value',
-                        min = 65,max = 95,value = 80,step = 5,
-                        labels = tagList(
-                          f7Icon("play_fill",old = FALSE),
-                          f7Icon("forward_fill",old = FALSE)
-                        )),
-               br(),
-               f7Button('toggle_inputhelp',label = "Help",
-                        shadow = TRUE, 
-                        size = 'small',
-                        rounded = TRUE)
-        ),
-        br(),
-        br(),
-        br(),
-        br(),
-        br()
-      ),
-      f7Tab( # analysis tab ----
-        tabName = "Analysis",
-        icon = f7Icon('graph_circle_fill',old = FALSE),
-        h1("Trade Analysis",style = 'text-align:center;'),
-        uiOutput('results_tab')
-      ),
-      f7Tab(tabName = "Values", # values tab ----
-            icon = f7Icon('square_favorites_fill',old = FALSE),
-            h1('Values - Quick Reference',style = 'text-align:center;'),
-            uiOutput('values')
-      ),
-      f7Tab(tabName = "About", # about tab ----
-        icon = f7Icon('info_circle_fill',old = FALSE),
-        br(),
-        div(img(src = 'icons/128x128.png'),style = 'text-align:center;'),
-        br(),
-        f7Card(title = "About",
-        includeMarkdown('about.md')
-        ),
-        br(),
-        f7Card(title = "More by DynastyProcess:",
-               f7List(inset = TRUE,
-                      f7ListItem(title = "Desktop Version",
-                                 url = "https://apps.dynastyprocess.com/calculator",
-                                 media = f7Icon('number_circle_fill',old = FALSE)),
-                      f7ListItem(title = "Crystal Ball",
-                                 media = f7Icon('moon_circle_fill',old = FALSE),
-                                 url = "https://apps.dynastyprocess.com/crystalball"),
-                      f7ListItem(title = "Twitter",
-                                 media = f7Icon('logo_twitter',old = FALSE),
-                                 url = "https://www.twitter.com/dynastyprocess"),
-                      f7ListItem(title = "Data Repository",
-                                 media = f7Icon('archivebox_fill',old = FALSE),
-                                 url = "https://www.github.com/tanho63/dynastyprocess"),
-                      f7ListItem(title = "Main Site",
-                                 media = f7Icon('waveform_circle_fill',old = FALSE),
-                                 url="https://dynastyprocess.com")
-                      )
-               ),
-        
-        br(),
-        f7Card(title = "Popular Players")
-      )
-    )
-  )) # end of UI tab ----
+              title = "DynastyProcess Trade Calculator",
+              dark_mode = TRUE,
+              manifest = "manifest.json",
+              favicon = "favicon.ico",
+              icon = '128x128.png',
+              init = f7Init(
+                skin = 'md',
+                theme = 'dark',
+                color = 'pink',
+                tapHold = FALSE
+              ),
+              f7TabLayout( # f7TabLayout ----
+                           use_sever(),
+                           tags$head(tags$style(HTML("table td, table tr, table th{background: transparent !important;}"))),
+                           navbar = f7Navbar(title = "DynastyProcess.com", # Navbar ----
+                                             subtitle = "Trade Calculator",
+                                             # left_panel = TRUE,
+                                             # bigger = TRUE
+                                             hairline = TRUE
+                           ),
+                           panels = tagList(f7Panel( # Sidebar panels (currently just a help panel) ---- 
+                                                     inputId = "panel_left",
+                                                     title = "Trade Calculator Help",
+                                                     side = "left",
+                                                     theme = "light",
+                                                     effect = "cover",
+                                                     h3("Inputs",style = "text-align:center;"),
+                                                     f7Accordion(
+                                                       f7AccordionItem(title = "QB Type",
+                                                                       f7Block(inset = TRUE,
+                                                                               "Toggles between the base FantasyPros 1QB values and our algorithm-generated 2QB values.")),
+                                                       f7AccordionItem(title = "League Size",
+                                                                       f7Block("Renames rookie and startup selections. Does not adjust values, you'll need to tweak the Valuation Factor for that."),inset = TRUE),
+                                                       f7AccordionItem(title = "Display Mode",
+                                                                       f7Block(inset = TRUE,"Adds labeling so that you can assess the value of startup pick trades, and can also include placeholder picks for a separate rookie draft.")),
+                                                       f7AccordionItem(title = "Valuation Factor",
+                                                                       f7Block(inset = TRUE,"Tunes how star players are valued relative to bench players, so that you can tweak values for league size/scoring, market preferences, and personal strategy.")),
+                                                       f7AccordionItem(title = "Rookie Pick Optimism",
+                                                                       f7Block(inset = TRUE,"Adjusts between our Perfect Knowledge and Hit Rate algorithms for valuing rookie picks.")),
+                                                       f7AccordionItem(title = "Future Pick Factor",
+                                                                       f7Block(inset = TRUE,"Adjusts value of future rookie picks."))
+                                                     ),
+                                                     h3("Hints",style="text-align:center;"),
+                                                     f7Accordion(
+                                                       f7AccordionItem(title = "Faster searching",
+                                                                       f7Block(inset = TRUE,
+                                                                               "You can pull up a list of all players by entering a ' , ' and all picks by entering a ' . ' - this is helpful for quickly scrolling through the list! \n")),
+                                                     )
+                           )
+                           ),
+                           appbar = NULL,
+                           f7Tabs( # Main tabs ----
+                                   # swipeable = TRUE,
+                                   # animated = FALSE,
+                                   id = 'tabs',
+                                   f7Tab( # input tab ----
+                                          tabName = "Inputs",
+                                          icon = f7Icon('wand_stars',old = FALSE),
+                                          active = TRUE,
+                                          br(),
+                                          div(img(src = 'icons/128x128.png'),style = 'text-align:center;'),
+                                          h1("Main Inputs", style = "text-align:center"),
+                                          
+                                          uiOutput('team_inputs'),
+                                          
+                                          f7SmartSelect('calc_type',
+                                                        label = "Trade Details", 
+                                                        smart = FALSE,
+                                                        choices = c("I'm considering this trade",
+                                                                    "I've received this trade offer",
+                                                                    "I've completed this trade")),
+                                          f7Card(title = 'Customize Value Settings',
+                                                 f7Row(
+                                                   f7SmartSelect('qb_type',label = 'QB Type',choices = c('1QB','2QB/SF')),
+                                                   f7SmartSelect('teams',
+                                                                 label = 'Teams',
+                                                                 choices = glue("{seq(6,24,2)} teams"),
+                                                                 selected = "12 teams"
+                                                   ),
+                                                   f7SmartSelect('draft_type',
+                                                                 label = "Display Mode",
+                                                                 choices = c('Normal',
+                                                                             'Startup (Players & Picks)',
+                                                                             'Startup (Players Only)'))
+                                                   
+                                                 ),
+                                                 f7Slider('value_factor',"Valuation Factor",min = 210,max = 260,value = 235,step = 5,
+                                                          labels = tagList(f7Icon("square_stack_3d_up_fill", old = FALSE),
+                                                                           f7Icon("star_circle_fill",old = FALSE))
+                                                 ),
+                                                 f7Slider('rookie_optimism','Rookie Optimism',
+                                                          min = 0,max = 100,value = 80,step = 5,
+                                                          labels = tagList(
+                                                            f7Icon("bolt_slash_fill",old = FALSE),
+                                                            f7Icon("bolt_fill",old = FALSE)
+                                                          )),
+                                                 f7Slider('future_factor','Future Pick Value',
+                                                          min = 65,max = 95,value = 80,step = 5,
+                                                          labels = tagList(
+                                                            f7Icon("play_fill",old = FALSE),
+                                                            f7Icon("forward_fill",old = FALSE)
+                                                          )),
+                                                 br(),
+                                                 f7Button('toggle_inputhelp',label = "Help",
+                                                          shadow = TRUE, 
+                                                          size = 'small',
+                                                          rounded = TRUE)
+                                          ),
+                                          br(),
+                                          br(),
+                                          br(),
+                                          br(),
+                                          br()
+                                   ),
+                                   f7Tab( # analysis tab ----
+                                          tabName = "Analysis",
+                                          icon = f7Icon('graph_circle_fill',old = FALSE),
+                                          h1("Trade Analysis",style = 'text-align:center;'),
+                                          uiOutput('results_tab')
+                                   ),
+                                   f7Tab(tabName = "Values", # values tab ----
+                                         icon = f7Icon('square_favorites_fill',old = FALSE),
+                                         h1('Values - Quick Reference',style = 'text-align:center;'),
+                                         uiOutput('values')
+                                   ),
+                                   f7Tab(tabName = "About", # about tab ----
+                                         icon = f7Icon('info_circle_fill',old = FALSE),
+                                         br(),
+                                         div(img(src = 'icons/128x128.png'),style = 'text-align:center;'),
+                                         br(),
+                                         f7Card(title = "About",
+                                                includeMarkdown('about.md')
+                                         ),
+                                         br(),
+                                         f7Card(
+                                                glue("ECR last updated: {players_raw$scrape_date[[1]]}")
+                                                ),
+                                         br(),
+                                         f7Card(title = "More by DynastyProcess:",
+                                                f7List(inset = TRUE,
+                                                       # f7ListItem(title = "Desktop Version",
+                                                       #            url = "https://apps.dynastyprocess.com/calculator",
+                                                       #            media = f7Icon('number_circle_fill',old = FALSE)),
+                                                       f7ListItem(title = "Crystal Ball",
+                                                                  media = f7Icon('moon_circle_fill',old = FALSE),
+                                                                  url = "https://apps.dynastyprocess.com/crystalball"),
+                                                       f7ListItem(title = "Twitter",
+                                                                  media = f7Icon('logo_twitter',old = FALSE),
+                                                                  url = "https://www.twitter.com/dynastyprocess"),
+                                                       f7ListItem(title = "Data Repository",
+                                                                  media = f7Icon('archivebox_fill',old = FALSE),
+                                                                  url = "https://www.github.com/dynastyprocess/data"),
+                                                       f7ListItem(title = "Main Site",
+                                                                  media = f7Icon('waveform_circle_fill',old = FALSE),
+                                                                  url="https://dynastyprocess.com")
+                                                )
+                                         ),
+                                         
+                                         br()
+                                         # f7Card(title = "Popular Players")
+                                   )
+                           )
+              )) # end of UI tab ----
 # start of server ----
 server <- function(input, output, session) { 
   
@@ -197,16 +205,18 @@ server <- function(input, output, session) {
     ),
     bg_color = "#000"
   )
-
+  
   # Calculate player and pick values based on the slider inputs ----
-
+  
   # Helper functions
-  calculate_value <- function(df,value_factor){
+  calculate_value <- function(df,value_factor,qb_type){
     v_f <- value_factor/10000
     
     df %>% 
-      mutate(value = 10500 * exp(-v_f * ecr),
-             value = round(value))
+      mutate(
+        ecr = if(qb_type == '1QB'){ecr_1qb} else {ecr_2qb},
+        value = 10500 * exp(-v_f * ecr),
+        value = round(value))
   } 
   
   label_currentpicks <- function(df,leaguesize) {
@@ -214,7 +224,7 @@ server <- function(input, output, session) {
     
     df %>% 
       mutate(
-        season = year(as_date(update_date)),
+        season = year(as_date(scrape_date)),
         rookie_round = (pick %/% l_s)+1,
         round_pick = round(pick %% l_s,0),
         pick_label = paste0(season," Pick ",as.character(rookie_round),".",str_sub(paste0(0,round_pick),-2,-1))
@@ -260,9 +270,16 @@ server <- function(input, output, session) {
       arrange(desc(value))
   }
   
-  calc_currentrookies <- function(df,rookie_optimism){
+  calc_currentrookies <- function(df,rookie_optimism,qb_type){
     r_o <- rookie_optimism/100
-    df %>% mutate(ecr = r_o*high_model + (1-r_o)*low_model)
+    
+    df %>% 
+      mutate(
+        high_model = if(qb_type == '1QB'){ecr_high_1qb} else {ecr_high_2qb},
+        low_model = if(qb_type == '1QB'){ecr_low_1qb} else {ecr_low_2qb},
+        # high_model = if_else(qb_type=='1QB',ecr_high_1qb,ecr_high_2qb),
+        # low_model = if_else(qb_type=='1QB',ecr_low_1qb,ecr_low_2qb),
+        ecr = r_o*high_model + (1-r_o)*low_model)
   }
   
   label_displaymode <- function(df,displaymode,leaguesize){
@@ -271,8 +288,8 @@ server <- function(input, output, session) {
     if(displaymode=='Normal'){return(df)}
     
     df %>%
-      filter(case_when(displaymode == 'Startup (Players Only)'~!is.na(position),
-                       displaymode == 'Startup (Players & Picks)'~ (!is.na(position)|grepl(year(Sys.Date()),player)))) %>% 
+      filter(case_when(displaymode == 'Startup (Players Only)'~ pos!='PICK',
+                       displaymode == 'Startup (Players & Picks)'~ (pos!='PICK'|grepl(year(Sys.Date()),player)))) %>% 
       arrange(desc(value)) %>% 
       rowid_to_column(var='pick') %>% 
       mutate(startup_round = (pick %/% l_s)+1,
@@ -287,7 +304,7 @@ server <- function(input, output, session) {
   
   pickvalues <- reactive({
     rookies_raw %>% 
-      calc_currentrookies(input$rookie_optimism) %>% 
+      calc_currentrookies(input$rookie_optimism,input$qb_type) %>% 
       label_currentpicks(parse_number(input$teams)) %>% 
       calculate_value(input$value_factor) %>% 
       add_futurepicks(input$future_factor,parse_number(input$teams)) %>% 
@@ -296,13 +313,13 @@ server <- function(input, output, session) {
   
   values <- reactive({
     players_raw %>%  
-      calculate_value(input$value_factor) %>% 
+      calculate_value(input$value_factor,input$qb_type) %>% 
       bind_rows(pickvalues()) %>% 
       label_displaymode(input$draft_type,input$teams) %>% 
       select(Player = player,Age = age,Value = value) %>%
       arrange(desc(Value))
   })
-
+  
   # Render input fields ----
   
   output$teamAinput <- renderUI({
@@ -322,7 +339,7 @@ server <- function(input, output, session) {
                    typeahead = FALSE,
                    choices = values()$Player,
                    value = values()$Player[sample(1:32,1)])})
-
+  
   output$teamA_list <- renderUI({
     req(input$players_teamA)
     
@@ -340,13 +357,13 @@ server <- function(input, output, session) {
   output$team_inputs <- renderUI({
     
     div(
-    uiOutput('teamAinput'),
-    uiOutput('teamA_list'),
-    uiOutput('teamBinput'),
-    uiOutput('teamB_list'),
-    f7Button('calculate',"Calculate!",
-             # rounded = TRUE, 
-             shadow = TRUE)
+      uiOutput('teamAinput'),
+      uiOutput('teamA_list'),
+      uiOutput('teamBinput'),
+      uiOutput('teamB_list'),
+      f7Button('calculate',"Calculate!",
+               # rounded = TRUE, 
+               shadow = TRUE)
     )
   })
   
@@ -367,22 +384,22 @@ server <- function(input, output, session) {
   
   pickvalues <- reactive({
     rookies_raw %>% 
-      calc_currentrookies(input$rookie_optimism) %>% 
+      calc_currentrookies(input$rookie_optimism,input$qb_type) %>% 
       label_currentpicks(parse_number(input$teams)) %>% 
-      calculate_value(input$value_factor) %>% 
+      calculate_value(input$value_factor,input$qb_type) %>% 
       add_futurepicks(input$future_factor,parse_number(input$teams)) %>% 
       select(player = pick_label,value)
   })
   
   values <- reactive({
     players_raw %>%  
-      calculate_value(input$value_factor) %>% 
+      calculate_value(input$value_factor,input$qb_type) %>% 
       bind_rows(pickvalues()) %>% 
       label_displaymode(input$draft_type,input$teams) %>% 
       select(Player = player,Age = age,Value = value) %>%
       arrange(desc(Value))
   })
-
+  
   # Results tab ----
   
   teamA_values <- eventReactive(input$calculate,{
@@ -410,10 +427,10 @@ server <- function(input, output, session) {
   
   percent_diff <- reactive({if (teamA_total() > teamB_total())
   {round(100*((teamA_total() - teamB_total())/teamB_total()))}
-  else if (teamA_total() < teamB_total())
-  {round(100*((teamB_total() - teamA_total())/teamA_total()))}
-  else
-  {0}
+    else if (teamA_total() < teamB_total())
+    {round(100*((teamB_total() - teamA_total())/teamA_total()))}
+    else
+    {0}
   })
   
   output$trade_gauge <- renderUI({
@@ -446,11 +463,11 @@ server <- function(input, output, session) {
             th(style="text-align:right;padding-right:3px;","Age"),
             th(style='text-align:right;padding-right:3px;',"Value")
           ))
-          )
     )
+  )
   
   output$teamA_valuetable <- renderDT({
-  teamA_values() %>%
+    teamA_values() %>%
       datatable(class = "compact row-border",
                 container = value_container,
                 selection = 'none',
@@ -479,9 +496,9 @@ server <- function(input, output, session) {
   })
   
   output$trade_plot <- render_mobile({
-
+    
     tibble(Team = c('Team A','Team B'),
-                 Players = list(teamA_values(),teamB_values())) %>%
+           Players = list(teamA_values(),teamB_values())) %>%
       unnest(Players) %>%
       mobile(aes(x = Team, y = Value, color = Player, adjust = stack)) %>% 
       mobile_bar() %>% 
@@ -490,7 +507,7 @@ server <- function(input, output, session) {
   })
   
   output$tradewizard_table <- renderDT({
-
+    
     trade_diff <- abs(teamA_total()-teamB_total())
     
     tradebalancer_table <- values() %>%
@@ -523,24 +540,24 @@ server <- function(input, output, session) {
     validate(need(input$calculate,message = "Please press Calculate to load the analysis!"))
     
     div(
-    f7Card(div(uiOutput('trade_gauge'),style = 'text-align:center;'),
-           inset = TRUE),
-    
-    f7Card(title = textOutput('teamA_total'), inset = TRUE,
-           DTOutput('teamA_valuetable')
-    ),
-    f7Card(title = textOutput('teamB_total'), inset = TRUE,
-           DTOutput('teamB_valuetable')
-    ),
-    f7Card(title = "Trade Plot",inset = TRUE,
-           mobileOutput('trade_plot')
-           ),
-    uiOutput('tradewizard'),
-    br(),
-    br(),
-    br(),
-    br(),
-    br()
+      f7Card(div(uiOutput('trade_gauge'),style = 'text-align:center;'),
+             inset = TRUE),
+      
+      f7Card(title = textOutput('teamA_total'), inset = TRUE,
+             DTOutput('teamA_valuetable')
+      ),
+      f7Card(title = textOutput('teamB_total'), inset = TRUE,
+             DTOutput('teamB_valuetable')
+      ),
+      f7Card(title = "Trade Plot",inset = TRUE,
+             mobileOutput('trade_plot')
+      ),
+      uiOutput('tradewizard'),
+      br(),
+      br(),
+      br(),
+      br(),
+      br()
     )
   })
   
@@ -567,17 +584,17 @@ server <- function(input, output, session) {
     validate(need(input$calculate,message = "Please press Calculate to load the Values table!"))  
     
     div(
-    f7Card(DTOutput('values_table')),
-    br(),
-    br(),
-    br(),
-    br(),
-    br())
+      f7Card(DTOutput('values_table')),
+      br(),
+      br(),
+      br(),
+      br(),
+      br())
   })
   
   # show last updated ----
   
-  f7Toast(session,glue("ECR last updated {rookies_raw$update_date[[1]]}"),closeTimeout = 1000)
+  f7Toast(session,glue("ECR last updated {players_raw$scrape_date[[1]]}"),closeTimeout = 1000)
   
   
 } # end of server segment ----
