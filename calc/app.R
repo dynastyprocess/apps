@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   library(mobileCharts) # rinterface/shinymobile
   library(sever) # johncoene/sever
   library(joker) # tanho63/joker
+  
 })
 
 # Read data from local ----
@@ -209,12 +210,18 @@ server <- function(input, output, session) {
   # Calculate player and pick values based on the slider inputs ----
   
   # Helper functions
-  calculate_value <- function(df,value_factor,qb_type){
+  
+  select_qbtype <- function(df,qb_type){
+    df %>% 
+      mutate(ecr = case_when(qb_type == '1QB' ~ecr_1qb,
+                             TRUE ~ ecr_2qb))
+  }
+  
+  calculate_value <- function(df,value_factor){
     v_f <- value_factor/10000
     
     df %>% 
       mutate(
-        ecr = if(qb_type == '1QB'){ecr_1qb} else {ecr_2qb},
         value = 10500 * exp(-v_f * ecr),
         value = round(value))
   } 
@@ -270,16 +277,17 @@ server <- function(input, output, session) {
       arrange(desc(value))
   }
   
-  calc_currentrookies <- function(df,rookie_optimism,qb_type){
-    r_o <- rookie_optimism/100
-    
+  calc_currentrookies <- function(df,rookie_opt,qb_type){
+    # r_o <- rookie_opt/100
     df %>% 
       mutate(
-        high_model = if(qb_type == '1QB'){ecr_high_1qb} else {ecr_high_2qb},
-        low_model = if(qb_type == '1QB'){ecr_low_1qb} else {ecr_low_2qb},
-        # high_model = if_else(qb_type=='1QB',ecr_high_1qb,ecr_high_2qb),
-        # low_model = if_else(qb_type=='1QB',ecr_low_1qb,ecr_low_2qb),
-        ecr = r_o*high_model + (1-r_o)*low_model)
+        high_model = case_when(qb_type == '1QB' ~ ecr_high_1qb,
+                               TRUE ~ ecr_high_2qb), 
+        low_model = case_when(qb_type == '1QB' ~ ecr_low_1qb,
+                               TRUE ~ ecr_low_2qb), 
+        high_factor = rookie_opt/100,
+        low_factor = 1-high_factor,
+        ecr = high_factor*high_model + low_factor*low_model)
   }
   
   label_displaymode <- function(df,displaymode,leaguesize){
@@ -300,7 +308,7 @@ server <- function(input, output, session) {
       arrange(desc(value),player)
   }
   
-  # Calculate Actual Values
+  # Calculate Actual Values ----
   
   pickvalues <- reactive({
     rookies_raw %>% 
@@ -313,7 +321,8 @@ server <- function(input, output, session) {
   
   values <- reactive({
     players_raw %>%  
-      calculate_value(input$value_factor,input$qb_type) %>% 
+      select_qbtype(input$qb_type) %>% 
+      calculate_value(input$value_factor) %>% 
       bind_rows(pickvalues()) %>% 
       label_displaymode(input$draft_type,input$teams) %>% 
       select(Player = player,Age = age,Value = value) %>%
@@ -378,26 +387,6 @@ server <- function(input, output, session) {
     
     updateF7AutoComplete('players_teamA',value = holdA)
     updateF7AutoComplete('players_teamB',value = holdB)
-  })
-  
-  # Calculate Actual Values
-  
-  pickvalues <- reactive({
-    rookies_raw %>% 
-      calc_currentrookies(input$rookie_optimism,input$qb_type) %>% 
-      label_currentpicks(parse_number(input$teams)) %>% 
-      calculate_value(input$value_factor,input$qb_type) %>% 
-      add_futurepicks(input$future_factor,parse_number(input$teams)) %>% 
-      select(player = pick_label,value)
-  })
-  
-  values <- reactive({
-    players_raw %>%  
-      calculate_value(input$value_factor,input$qb_type) %>% 
-      bind_rows(pickvalues()) %>% 
-      label_displaymode(input$draft_type,input$teams) %>% 
-      select(Player = player,Age = age,Value = value) %>%
-      arrange(desc(Value))
   })
   
   # Results tab ----
