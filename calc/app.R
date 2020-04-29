@@ -1,11 +1,14 @@
 suppressPackageStartupMessages({
   # Data import
   library(arrow)
+  library(DBI)
+  library(RSQLite)
   # Data manipulation
   library(tidyverse)
   library(lubridate)
   library(glue)
   library(magrittr)
+  library(uuid)
   # Shiny
   library(shiny)
   library(shinyMobile) # tanho63/shinymobile
@@ -585,6 +588,36 @@ server <- function(input, output, session) {
   
   f7Toast(session,glue("ECR last updated {players_raw$scrape_date[[1]]}"),closeTimeout = 1000)
   
+  # Save data to a sqlite file on server ----
+  
+  sessionID <- UUIDgenerate(1)
+  
+  observeEvent(input$calculate, {
+    
+    saved_data <- tibble(
+      trade_id = UUIDgenerate(1),
+      session_id = sessionID,
+      timestamp = Sys.time(),
+      # input_calctype = input$calc_type,
+      input_drafttype = input$draft_type,
+      input_qb = input$qb_type,
+      input_teams = input$teams,
+      input_valuefactor = input$value_factor,
+      input_rookieoptimism = input$rookie_optimism,
+      input_futurefactor = input$future_factor,
+      teamA_players = paste(input$players_teamA, sep = "", collapse = " | "),
+      teamA_values = paste0(teamA_values()$Value, sep = "", collapse = " | "),
+      teamA_total = teamA_total(),
+      teamB_players = paste(input$players_teamB, sep = "", collapse = " | "),
+      teamB_values = paste0(teamB_values()$Value, sep = "", collapse = " | "),
+      teamB_total = teamB_total()
+    )
+    
+    db_local <- dbConnect(RSQLite::SQLite(),'calculator_logs.sqlite')
+    dbAppendTable(db_local,name = 'calculator_logs',value = saved_data)
+    dbDisconnect(db_local)
+    
+  })
   
 } # end of server segment ----
 
