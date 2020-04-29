@@ -19,14 +19,9 @@ suppressPackageStartupMessages({
   
 })
 
-# Read data from local ----
-players_raw <- read.csv("https://raw.githubusercontent.com/tanho63/dynastyprocess/master/files/values-players.csv") %>% 
-  mutate(player = paste0(player,", ",pos," ",team))
-rookies_raw <- read.csv("https://raw.githubusercontent.com/tanho63/dynastyprocess/master/files/values-picks.csv") %>% 
-  filter(str_detect(player,'2020 Pick')) %>% 
-  rownames_to_column(var = 'pick') %>% 
-  mutate(pick=as.numeric(pick))
-
+# Read data from local (see update_local.R) ----
+players_raw <- read_parquet('player_raw.pdata')
+picks_raw <- read_parquet('picks_raw.pdata')
 
 ui <- f7Page( # f7Page setup and Init Options ----
               title = "DynastyProcess Trade Calculator",
@@ -314,7 +309,7 @@ server <- function(input, output, session) {
   # Calculate Actual Values ----
   
   pickvalues <- reactive({
-    rookies_raw %>% 
+    picks_raw %>% 
       calc_currentrookies(input$rookie_optimism,input$qb_type) %>% 
       label_currentpicks(parse_number(input$teams)) %>% 
       calculate_value(input$value_factor) %>% 
@@ -598,7 +593,7 @@ server <- function(input, output, session) {
       trade_id = UUIDgenerate(1),
       session_id = sessionID,
       timestamp = Sys.time(),
-      # input_calctype = input$calc_type,
+      input_calctype = input$calc_type,
       input_drafttype = input$draft_type,
       input_qb = input$qb_type,
       input_teams = input$teams,
@@ -613,8 +608,8 @@ server <- function(input, output, session) {
       teamB_total = teamB_total()
     )
     
-    db_local <- dbConnect(RSQLite::SQLite(),'calculator_logs.sqlite')
-    dbAppendTable(db_local,name = 'calculator_logs',value = saved_data)
+    db_local <- dbConnect(RSQLite::SQLite(),'calculator_log.sqlite')
+    dbWriteTable(db_local,name = 'calculator_log',value = saved_data,append=TRUE)
     dbDisconnect(db_local)
     
   })
