@@ -608,7 +608,7 @@ server <- function(input, output, session) {
       teamB_total = teamB_total()
     )
     
-    db_local <- dbConnect(RSQLite::SQLite(),'calculator_log.sqlite')
+    db_local <- dbConnect(RSQLite::SQLite(),'calculator_log2.sqlite')
     dbWriteTable(db_local,name = 'calculator_log',value = saved_data,append=TRUE)
     dbDisconnect(db_local)
     
