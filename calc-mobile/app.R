@@ -13,7 +13,7 @@ suppressPackageStartupMessages({
   library(shiny)
   library(shinyMobile) # tanho63/shinymobile
   library(DT)
-  library(mobileCharts) # rinterface/shinymobile
+  library(mobileCharts) # rinterface/mobileCharts
   library(sever) # johncoene/sever
   library(joker) # tanho63/joker
   
@@ -207,7 +207,7 @@ server <- function(input, output, session) {
   
   # Calculate player and pick values based on the slider inputs ----
   
-  # Helper functions
+  # Helper functions ----
   
   select_qbtype <- function(df,qb_type){
     df %>% 
