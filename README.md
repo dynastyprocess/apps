@@ -3,5 +3,5 @@ A fresh repository for DynastyProcess Shiny Apps, this one designed to work on b
 
 Branches: 
 
-- Production <- the production branch
-- Devel <- the main development branch
+- Master <- the production branch
+- Dev <- the main development branch
