@@ -30,8 +30,7 @@ picks_raw <- read_parquet('../calculator-internal/picks_raw.pdata')
 
 pool_localdb <- dbPool(SQLite(),
                dbname = '../calculator-internal/calculator_log.sqlite',
-               minSize = 10,
-               idleTimeout = 3600000
+               minSize = 10
                )
 
 ui <- f7Page( # f7Page setup and Init Options ----
@@ -498,13 +497,8 @@ server <- function(input, output, session) {
       teamB_values = paste0(teamB_values()$Value, sep = "", collapse = " | "),
       teamB_total = teamB_total()
     )
-    tryCatch({
-      dbWriteTable(pool_localdb,name = 'calculator_log',value = saved_data,append=TRUE)
-    },
-    error = NULL,
-    finally = NULL
     
-    )
+      dbWriteTable(pool_localdb, name = 'calculator_log',value = saved_data,append=TRUE)
   })
   
 } # end of server segment ----
