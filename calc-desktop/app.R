@@ -12,73 +12,93 @@ suppressPackageStartupMessages({
   # Shiny
   library(shiny)
   library(bs4Dash)
+  library(shinyMobile)
   library(shinyWidgets)
   library(DT)
-  library(mobileCharts) # rinterface/mobileCharts
   library(sever) # johncoene/sever
   library(joker) # tanho63/joker
 })
 
 # Read data from local (see update_local.R) ----
-# players_raw <- read_parquet('player_raw.pdata')
-# picks_raw <- read_parquet('picks_raw.pdata')
+
+players_raw <- read_parquet('../calculator-internal/player_raw.pdata')
+picks_raw <- read_parquet('../calculator-internal/picks_raw.pdata')
+
+source('../calculator-internal/fn_server.R')
+source('../calculator-internal/fn_ui_desktop.R')
 
 ui <- dashboardPage(
   sidebar_collapsed = FALSE,
-  dashboardHeader(skin = 'dark',
-                  fixed = TRUE,
-                  status = 'danger',
-                  border = TRUE,
-                  span('Trade Calculator',style= 'font-size:1.5em;color:#ffffff')
-                  ),
-  dashboardSidebar(title = 'DynastyProcess.com',
-                   fixed = TRUE,
-                   brandColor = 'danger',
-                   status = 'danger',
-                   elevation = 3,
-                   opacity = 0.8,
-                   url = "https://dynastyprocess.com",
-                   expand_on_hover = TRUE,
-                   src = "https://avatars2.githubusercontent.com/u/63691873?s=400&u=d9289a2540799f19ca6d8ad866e219ee2d602ba9&v=4",
-                   skin = 'light',
-                   sidebarMenu(
-                     menuItem('Calculator',tabName = 'calculator',icon = 'quidditch'),
-                     menuItem('Help',tabName = 'Help',icon = 'question'),
-                     menuItem('Popular Trades', icon = 'tachometer-alt'),
-                     menuItem('About',icon = 'rocket')
-                   )),
+  navbar = ui_header(),
+  sidebar = ui_sidebar(
+    menuItem('Calculator',tabName = 'calculator',icon = 'quidditch'),
+    menuItem('Help',tabName = 'Help',icon = 'question'),
+    menuItem('Popular Trades',tabName = 'popular', icon = 'tachometer-alt'),
+    menuItem('About',tabName = 'about',icon = 'rocket')
+  ),
   dashboardBody(use_sever(),
                 tabItems(
-                  tabItem(
-                    tabName = 'calculator',
-                    column(width = 12,
-                           bs4CardLayout(
-                             type = 'group',
-                             box(
-                               title = 'Team A',
-                               collapsible = FALSE,
-                               # maximizable = TRUE,
-                               width = NULL,
-                               pickerInput('teamAplayers',choices = c('Player1','Player2','Player3'),multiple = TRUE,width = '100%')
-                             ),
-                             box(
-                               title = 'Team B',
-                               # maximizable = TRUE,
-                               collapsible = FALSE,
-                               width = NULL,
-                               pickerInput('teamAplayers',choices = c('Player1','Player2','Player3'),multiple = TRUE,width = '100%')
-                             ),
-                             box(width = NULL,collapsible = FALSE,br(),br(),div(actionButton('calculate',label = "Calculate!",class = 'btn-success'),style = 'text-align:center;'))
-                           )
+                  tabItem(tabName = 'calculator',
+                    fluidRow(
+                      column(width = 8,
+                             uiOutput('team_inputs')
+                      ), 
+                    column(width = 4,
+                    box(width = 12, title = "Calculator Options",inputId = 'calc_options',
+                        status = 'danger',
+                        div(style = 'text-align:center;',
+                        radioGroupButtons('qb_type',
+                                          justified = TRUE,width = '100%',
+                                          choices = c('1QB','2QB/SF'),selected = '1QB',checkIcon = list(yes = icon('check'))
+                                          )),
+                        pickerInput('teams',
+                                    width = '100%',
+                                    choices = glue("{seq(6,24,2)} teams"),
+                                    selected = '12 teams'
+                        ),
+                        pickerInput('draft_type',
+                                    width = '100%',
+                                    choices = c('Normal',
+                                                'Startup (Players & Picks)',
+                                                'Startup (Players Only)')),
+                        pickerInput('calc_type',
+                                    width = '100%',
+                                    choices = c("I'm considering this trade",
+                                                "I've received this offer",
+                                                "I've completed this trade"))
+                        
                     ),
-                      box(
-                        title = 'Controls',
-                        collapsible = FALSE,
-                        # maximizable = TRUE,
-                        width = 12
-                      ),
+                    box(width = 12,
+                        title = "Value Controls",
+                        status = 'danger',
+                        elevation = 0,
+                        collapsible = TRUE,
+                        h6('Value Factor'),
+                        iconwrap_slider('value_factor',label = NULL,
+                                        min = 210, max = 260, value = 235,
+                                        ticks = FALSE,step = 5,width = '100%',
+                                        icon_left = 'layer-group', icon_right = 'star'),
+                        h6('Rookie Pick Optimism'),
+                        
+                        iconwrap_slider('rookie_optimism',label = NULL, 
+                                        min = 0, max = 100, value = 80, 
+                                        ticks = FALSE, step = 5, width = '100%', 
+                                        icon_left = 'snowflake', icon_right = 'hotjar'),
+                        h6('Future Factor'),
+                        iconwrap_slider('future_factor',label = NULL, 
+                                        min = 65, max = 95, value = 80, 
+                                        ticks = FALSE, step = 5, width = '100%', 
+                                        icon_left = 'play', icon_right = 'fast-forward')
+                    )
+                    ),
                     column(width=12,
                       fluidRow(
+                        box(
+                          title = 'Analysis',
+                          maximizable = TRUE,
+                          collapsible = FALSE,
+                          width = 4
+                        ),
                         box(
                           title = 'Plot',
                           maximizable = TRUE,
@@ -86,163 +106,157 @@ ui <- dashboardPage(
                           width = 8
                         ),
                         box(
-                          title = 'Analysis',
-                          # status = 'danger',
-                          # solidHeader = TRUE,
-                          maximizable = TRUE,
-                          collapsible = FALSE,
-                          width = 4
-                        ),
-                        box(
                           title = 'Wizard',
-                          # status = 'danger',
-                          # solidHeader = TRUE,
                           maximizable = TRUE,
                           collapsible = FALSE,
                           width = 4
                         )
                       )
                       )
-                    )))
+                    ))
   
   
-)
+)))
 
 server <- function(input, output, session) {
+
+  sever_joke()
+
+  # Render Inputs ----
+  output$teamAinput <- renderUI({
+    pickerInput(
+      'players_teamA',
+      choices = values()$Player,
+      options = list(
+        title = "Select Players for Team A!",
+        `selected-text-format` = "count > 0",
+        `actions-box` = TRUE,
+        `live-search` = TRUE),
+      multiple = TRUE,
+      width = '100%'
+    )
+    })
   
-  # Sever - cleans up the disconnect screen ----
-  sever(
-    tagList(
-      h1("Disconnected"),
-      p(em(randomjoke())),
-      shiny::tags$button(
-        "Reload",
-        style = "color:#000;background-color:#fff;",
-        class = "button button-raised",
-        onClick = "location.reload();"
-      )
-    ),
-    bg_color = "#000"
-  )
-  
-  # Helper functions ----
-  
-  select_qbtype <- function(df,qb_type){
-    df %>% 
-      mutate(ecr = case_when(qb_type == '1QB' ~ecr_1qb,
-                             TRUE ~ ecr_2qb))
-  }
-  
-  calculate_value <- function(df,value_factor){
-    v_f <- value_factor/10000
-    
-    df %>% 
-      mutate(
-        value = 10500 * exp(-v_f * ecr),
-        value = round(value))
-  } 
-  
-  label_currentpicks <- function(df,leaguesize) {
-    l_s <- leaguesize + 0.001
-    
-    df %>% 
-      mutate(
-        season = year(as_date(scrape_date)),
-        rookie_round = (pick %/% l_s)+1,
-        round_pick = round(pick %% l_s,0),
-        pick_label = paste0(season," Pick ",as.character(rookie_round),".",str_sub(paste0(0,round_pick),-2,-1))
-      )
-  }
-  
-  add_futurepicks <- function(df,futurerookie_factor,leaguesize){
-    fr_f <- futurerookie_factor/100
-    l_s <- leaguesize + 0.001
-    
-    n1 <- df %>%
-      mutate(season = season + 1,
-             rookie_round = case_when(rookie_round == 1 ~ '1st',
-                                      rookie_round == 2 ~ '2nd',
-                                      rookie_round == 3 ~ '3rd',
-                                      rookie_round >= 4 ~ paste0(rookie_round,'th')),
-             eml = case_when(round_pick <= l_s/3 ~ 'Early',
-                             round_pick <= l_s*2/3 ~ 'Mid',
-                             TRUE ~ 'Late'))
-    
-    n1_eml <- n1 %>% 
-      group_by(season,rookie_round,eml) %>% 
-      summarise(value = mean(value)*fr_f) %>% 
-      ungroup() %>% 
-      mutate(pick_label = paste(season,eml,rookie_round))
-    
-    n1_summary <- n1 %>% 
-      group_by(season,rookie_round) %>% 
-      summarise(value = mean(value)*fr_f) %>% 
-      ungroup() %>% 
-      mutate(pick_label = paste(season,rookie_round))
-    
-    n2_summary <- n1_summary %>% 
-      mutate(season = season + 1,
-             value = value*fr_f,
-             pick_label = paste(season,rookie_round))
-    
-    df %>% 
-      mutate(rookie_round = as.character(rookie_round)) %>% 
-      bind_rows(n1_eml,n1_summary,n2_summary) %>% 
-      mutate(position = "PICK",
-             value = round(value)) %>% 
-      arrange(desc(value))
-  }
-  
-  calc_currentrookies <- function(df,rookie_opt,qb_type){
-    # r_o <- rookie_opt/100
-    df %>% 
-      mutate(
-        high_model = case_when(qb_type == '1QB' ~ ecr_high_1qb,
-                               TRUE ~ ecr_high_2qb), 
-        low_model = case_when(qb_type == '1QB' ~ ecr_low_1qb,
-                              TRUE ~ ecr_low_2qb), 
-        high_factor = rookie_opt/100,
-        low_factor = 1-high_factor,
-        ecr = high_factor*high_model + low_factor*low_model)
-  }
-  
-  label_displaymode <- function(df,displaymode,leaguesize){
-    l_s <- parse_number(leaguesize) + 0.001
-    
-    if(displaymode=='Normal'){return(df)}
-    
-    df %>%
-      filter(case_when(displaymode == 'Startup (Players Only)'~ pos!='PICK',
-                       displaymode == 'Startup (Players & Picks)'~ (pos!='PICK'|grepl(year(Sys.Date()),player)))) %>% 
-      arrange(desc(value)) %>% 
-      rowid_to_column(var='pick') %>% 
-      mutate(startup_round = (pick %/% l_s)+1,
-             startup_pick = round(pick %% l_s,0),
-             startup_label = paste0("Startup Pick ",startup_round,".",str_sub(paste0(0,startup_pick),-2,-1))) %>% 
-      bind_rows(df) %>% 
-      mutate(player = coalesce(startup_label,player)) %>% 
-      arrange(desc(value),player)
-  }
-  
-  # Calculate Actual Values ----
-  
-  pickvalues <- reactive({
-    picks_raw %>% 
-      calc_currentrookies(input$rookie_optimism,input$qb_type) %>% 
-      label_currentpicks(parse_number(input$teams)) %>% 
-      calculate_value(input$value_factor) %>% 
-      add_futurepicks(input$future_factor,parse_number(input$teams)) %>% 
-      select(player = pick_label,value)
+  output$teamBinput <- renderUI({
+    pickerInput(
+      'players_teamB',
+      choices = values()$Player,
+      options = list(
+        title = "Select Players for Team B!",
+        `selected-text-format` = "count > 0",
+        `actions-box` = TRUE,
+        `live-search` = TRUE),
+      multiple = TRUE,
+      width = '100%'
+    )
   })
   
+  output$teamA_list <- renderUI({
+    req(input$players_teamA)
+    
+    map(input$players_teamA,bs4ListGroupItem,type = 'basic') %>% 
+      bs4ListGroup(width = 12)
+  })
+  
+  output$teamB_list <- renderUI({
+    req(input$players_teamB)
+    
+    map(input$players_teamB,bs4ListGroupItem,type = 'basic') %>% 
+      bs4ListGroup(width = 12)
+  })
+  
+  output$team_inputs <- renderUI({
+    
+    box(
+      width = 12,
+      title = 'Players',
+      status = 'danger',
+      footer = actionBttn(
+        'calculate',
+        style = 'material-flat',
+        block = TRUE,
+        color = 'default',
+        label = "Calculate!"
+      ),
+      bs4CardLayout(
+        type = 'group',
+        box(
+          title = 'Team A',
+          elevation = 0,
+          collapsible = FALSE,
+          status = 'green',
+          width = NULL,
+          uiOutput('teamAinput'),
+          uiOutput('teamA_list')
+        ),
+        box(
+          title = 'Team B',
+          elevation = 0,
+          status = 'purple',
+          collapsible = FALSE,
+          width = NULL,
+          uiOutput('teamBinput'),
+          uiOutput('teamB_list')
+        )
+        
+      )
+    )
+    
+    
+  })
+  
+  # Close calc_options box on calculate
+  observeEvent(input$calculate,{if(!input$calc_options$collapsed){updatebs4Card('calc_options',session,'toggle')}})
+  
+  # hold the selected players if values change
+  observeEvent(values(),{
+    
+    holdA <- input$players_teamA
+    holdB <- input$players_teamB
+    
+    updatePickerInput(session,'players_teamA',selected = holdA)
+    updatePickerInput(session,'players_teamB',selected = holdB)
+  })
+  
+  # Calculate Actual Values ----
+
   values <- reactive({
-    players_raw %>%  
-      select_qbtype(input$qb_type) %>% 
-      calculate_value(input$value_factor) %>% 
-      bind_rows(pickvalues()) %>% 
-      label_displaymode(input$draft_type,input$teams) %>% 
-      select(Player = player,Age = age,Value = value) %>%
+    gen_df_values(players_raw,picks_raw,
+                  input$qb_type,input$teams,input$value_factor,
+                  input$rookie_optimism,input$draft_type,input$future_factor, 
+                  c('Player','Age','Value'))
+  })
+  
+  # Results ----
+  teamA_values <- eventReactive(input$calculate,{
+    values() %>%
+      filter(Player %in% input$players_teamA) %>%
       arrange(desc(Value))
+  })
+  
+  teamB_values <- eventReactive(input$calculate,{
+    values() %>%
+      filter(Player %in% input$players_teamB) %>%
+      arrange(desc(Value))
+  })
+  
+  teamA_total <- reactive({
+    teamA_values() %>% 
+      summarise(Total = sum(Value)) %>% 
+      pull(Total)
+  })
+  teamB_total <- reactive({-+
+    teamB_values() %>% 
+      summarise(Total = sum(Value)) %>% 
+      pull(Total)
+  })
+  
+  percent_diff <- reactive({if (teamA_total() > teamB_total())
+  {round(100*((teamA_total() - teamB_total())/teamB_total()))}
+    else if (teamA_total() < teamB_total())
+    {round(100*((teamB_total() - teamA_total())/teamA_total()))}
+    else
+    {0}
   })
   
   # Save data to a sqlite file on server ----
@@ -250,6 +264,8 @@ server <- function(input, output, session) {
   sessionID <- UUIDgenerate(1)
   
   observeEvent(input$calculate, {
+
+    req(teamA_values(),teamB_values())
     
     saved_data <- tibble(
       trade_id = UUIDgenerate(1),
@@ -269,11 +285,11 @@ server <- function(input, output, session) {
       teamB_values = paste0(teamB_values()$Value, sep = "", collapse = " | "),
       teamB_total = teamB_total()
     )
-    
-    db_local <- dbConnect(RSQLite::SQLite(),'calculator_log2.sqlite')
+
+    db_local <- DBI::dbConnect(RSQLite::SQLite(),'../calculator-internal/calculator_log.sqlite')
     dbWriteTable(db_local,name = 'calculator_log',value = saved_data,append=TRUE)
     dbDisconnect(db_local)
-    
+
   })
   
   
