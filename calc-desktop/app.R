@@ -3,6 +3,7 @@ suppressPackageStartupMessages({
   library(arrow)
   library(DBI)
   library(RSQLite)
+  library(pool)
   # Data manipulation
   library(tidyverse)
   library(lubridate)
@@ -27,93 +28,77 @@ picks_raw <- read_parquet('../calculator-internal/picks_raw.pdata')
 source('../calculator-internal/fn_server.R')
 source('../calculator-internal/fn_ui_desktop.R')
 
+pool_localdb <- dbPool(SQLite(),
+                       dbname = '../calculator-internal/calculator_log.sqlite',
+                       minSize = 10
+)
+
 ui <- dashboardPage(
   sidebar_collapsed = FALSE,
   navbar = ui_header(),
   sidebar = ui_sidebar(
     menuItem('Calculator',tabName = 'calculator',icon = 'quidditch'),
-    menuItem('Help',tabName = 'Help',icon = 'question'),
+    menuItem('Help',tabName = 'help',icon = 'question'),
     menuItem('Popular Trades',tabName = 'popular', icon = 'tachometer-alt'),
     menuItem('About',tabName = 'about',icon = 'rocket')
   ),
-  dashboardBody(use_sever(),
-                tabItems(
-                  tabItem(tabName = 'calculator',
-                    fluidRow(
-                      column(width = 8,
-                             uiOutput('team_inputs')
-                      ), 
-                    column(width = 4,
-                    box(width = 12, title = "Calculator Options",inputId = 'calc_options',
-                        status = 'danger',
+  dashboardBody(
+    use_sever(),
+    tabItems(
+      tabItem(tabName = 'calculator',
+              fluidRow(
+                column(width = 8,
+                       uiOutput('team_inputs')),
+                column(width = 4,
+                       box(width = 12, title = "Calculator Options",inputId = 'calc_options',status = 'danger',collapsible = TRUE,
                         div(style = 'text-align:center;',
-                        radioGroupButtons('qb_type',
-                                          justified = TRUE,width = '100%',
-                                          choices = c('1QB','2QB/SF'),selected = '1QB',checkIcon = list(yes = icon('check'))
-                                          )),
-                        pickerInput('teams',
-                                    width = '100%',
-                                    choices = glue("{seq(6,24,2)} teams"),
-                                    selected = '12 teams'
+                            radioGroupButtons(
+                              'qb_type',justified = TRUE,width = '100%',
+                              choices = c('1QB','2QB/SF'),
+                              selected = '1QB',
+                              checkIcon = list(yes = icon('check')))),
+                        pickerInput(
+                          'teams', width = '100%',
+                          choices = glue("{seq(6,24,2)} teams"),
+                          selected = '12 teams'),
+                        pickerInput(
+                          'draft_type', width = '100%',
+                          choices = c('Normal', 'Startup (Players & Picks)','Startup (Players Only)')),
+                        pickerInput(
+                          'calc_type', width = '100%',
+                          choices = c("I'm considering this trade", "I've received this offer", "I've completed this trade"))
                         ),
-                        pickerInput('draft_type',
-                                    width = '100%',
-                                    choices = c('Normal',
-                                                'Startup (Players & Picks)',
-                                                'Startup (Players Only)')),
-                        pickerInput('calc_type',
-                                    width = '100%',
-                                    choices = c("I'm considering this trade",
-                                                "I've received this offer",
-                                                "I've completed this trade"))
-                        
-                    ),
-                    box(width = 12,
-                        title = "Value Controls",
-                        status = 'danger',
-                        elevation = 0,
-                        collapsible = TRUE,
+                       box(width = 12, title = "Value Controls", status = 'danger', collapsible = TRUE,
                         h6('Value Factor'),
-                        iconwrap_slider('value_factor',label = NULL,
-                                        min = 210, max = 260, value = 235,
-                                        ticks = FALSE,step = 5,width = '100%',
-                                        icon_left = 'layer-group', icon_right = 'star'),
+                        iconwrap_slider(
+                          'value_factor',label = NULL, min = 210, max = 260, value = 235,
+                          ticks = FALSE,step = 5,width = '100%', icon_left = 'layer-group', icon_right = 'star'),
                         h6('Rookie Pick Optimism'),
-                        
-                        iconwrap_slider('rookie_optimism',label = NULL, 
-                                        min = 0, max = 100, value = 80, 
-                                        ticks = FALSE, step = 5, width = '100%', 
-                                        icon_left = 'snowflake', icon_right = 'hotjar'),
+                        iconwrap_slider(
+                          'rookie_optimism',label = NULL, min = 0, max = 100, value = 80,
+                          ticks = FALSE, step = 5, width = '100%', icon_left = 'snowflake', icon_right = 'hotjar'),
                         h6('Future Factor'),
-                        iconwrap_slider('future_factor',label = NULL, 
-                                        min = 65, max = 95, value = 80, 
-                                        ticks = FALSE, step = 5, width = '100%', 
-                                        icon_left = 'play', icon_right = 'fast-forward')
-                    )
-                    ),
-                    column(width=12,
-                      fluidRow(
-                        box(
-                          title = 'Analysis',
-                          maximizable = TRUE,
-                          collapsible = FALSE,
-                          width = 4
-                        ),
-                        box(
-                          title = 'Plot',
-                          maximizable = TRUE,
-                          collapsible = FALSE,
-                          width = 8
-                        ),
-                        box(
-                          title = 'Wizard',
-                          maximizable = TRUE,
-                          collapsible = FALSE,
-                          width = 4
+                        iconwrap_slider(
+                          'future_factor',label = NULL, min = 65, max = 95, value = 80,
+                          ticks = FALSE, step = 5, width = '100%', icon_left = 'play', icon_right = 'fast-forward')
                         )
-                      )
-                      )
-                    ))
+                    ),
+                column(width=12,
+                       fluidRow(
+                         box(
+                           title = 'Analysis', maximizable = TRUE, collapsible = FALSE, width = 4
+                           ),
+                         box(
+                           title = 'Plot', maximizable = TRUE, collapsible = FALSE, width = 8
+                           ),
+                         box(
+                           title = 'Wizard', maximizable = TRUE, collapsible = FALSE,width = 4
+                           )
+                         ))
+                )),
+      tabItem(tabName = 'help'),
+      tabItem(tabName = 'popular'),
+      tabItem(tabName = 'about')
   
   
 )))
@@ -136,7 +121,6 @@ server <- function(input, output, session) {
       width = '100%'
     )
     })
-  
   output$teamBinput <- renderUI({
     pickerInput(
       'players_teamB',
@@ -157,7 +141,6 @@ server <- function(input, output, session) {
     map(input$players_teamA,bs4ListGroupItem,type = 'basic') %>% 
       bs4ListGroup(width = 12)
   })
-  
   output$teamB_list <- renderUI({
     req(input$players_teamB)
     
@@ -206,9 +189,11 @@ server <- function(input, output, session) {
   })
   
   # Close calc_options box on calculate
-  observeEvent(input$calculate,{if(!input$calc_options$collapsed){updatebs4Card('calc_options',session,'toggle')}})
+  observeEvent(input$calculate,{
+    if(!input$calc_options$collapsed){updatebs4Card('calc_options',session,'toggle')}
+    })
   
-  # hold the selected players if values change
+  # hold the selected players if values change (i.e. settings are toggled)
   observeEvent(values(),{
     
     holdA <- input$players_teamA
@@ -219,7 +204,6 @@ server <- function(input, output, session) {
   })
   
   # Calculate Actual Values ----
-
   values <- reactive({
     gen_df_values(players_raw,picks_raw,
                   input$qb_type,input$teams,input$value_factor,
@@ -233,7 +217,6 @@ server <- function(input, output, session) {
       filter(Player %in% input$players_teamA) %>%
       arrange(desc(Value))
   })
-  
   teamB_values <- eventReactive(input$calculate,{
     values() %>%
       filter(Player %in% input$players_teamB) %>%
@@ -245,7 +228,7 @@ server <- function(input, output, session) {
       summarise(Total = sum(Value)) %>% 
       pull(Total)
   })
-  teamB_total <- reactive({-+
+  teamB_total <- reactive({
     teamB_values() %>% 
       summarise(Total = sum(Value)) %>% 
       pull(Total)
@@ -259,6 +242,8 @@ server <- function(input, output, session) {
     {0}
   })
   
+  
+  
   # Save data to a sqlite file on server ----
   
   sessionID <- UUIDgenerate(1)
@@ -267,7 +252,7 @@ server <- function(input, output, session) {
 
     req(teamA_values(),teamB_values())
     
-    saved_data <- tibble(
+    saved_data <- {tibble(
       trade_id = UUIDgenerate(1),
       session_id = sessionID,
       timestamp = Sys.time(),
@@ -284,14 +269,11 @@ server <- function(input, output, session) {
       teamB_players = paste(input$players_teamB, sep = "", collapse = " | "),
       teamB_values = paste0(teamB_values()$Value, sep = "", collapse = " | "),
       teamB_total = teamB_total()
-    )
-
-    db_local <- DBI::dbConnect(RSQLite::SQLite(),'../calculator-internal/calculator_log.sqlite')
-    dbWriteTable(db_local,name = 'calculator_log',value = saved_data,append=TRUE)
-    dbDisconnect(db_local)
+    )}
+    
+    try(dbWriteTable(pool_localdb, name = 'calculator_log',value = saved_data,append=TRUE))
 
   })
-  
   
 }
 
