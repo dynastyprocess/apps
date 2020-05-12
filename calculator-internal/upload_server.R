@@ -4,6 +4,7 @@ suppressPackageStartupMessages({
   library(RSQLite)
   library(odbc)
   library(glue)
+  library(dplyr)
   
 })
 
@@ -19,6 +20,7 @@ df_upload <- df_local %>%
 
 dbAppendTable(db_server,'dp_calculatorlogs',df_upload)
 dbExecute(db_local,glue_sql('DELETE FROM calculator_log WHERE trade_id IN ({df_upload$trade_id*});', .con = db_local))
+dbExecute(db_local,glue_sql('DELETE FROM calculator_log WHERE trade_id IN ({df_server$trade_id*});', .con = db_local))
 dbExecute(db_local,'vacuum;')
 
 dbDisconnect(db_local)

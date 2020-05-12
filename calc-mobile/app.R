@@ -223,7 +223,9 @@ server <- function(input, output, session) {
                    expandInput = TRUE,
                    typeahead = FALSE,
                    choices = values()$Player,
-                   value = values()$Player[sample(1:32,1)])})
+                   # value = NULL
+                   value = values()$Player[sample(1:32,1)]
+                   )})
   
   output$teamBinput <- renderUI({
     f7AutoComplete('players_teamB',
@@ -232,7 +234,9 @@ server <- function(input, output, session) {
                    expandInput = TRUE,
                    typeahead = FALSE,
                    choices = values()$Player,
-                   value = values()$Player[sample(1:32,1)])})
+                   # value = NULL
+                   value = values()$Player[sample(1:32,1)]
+                   )})
   
   output$teamA_list <- renderUI({
     req(input$players_teamA)
@@ -498,7 +502,7 @@ server <- function(input, output, session) {
       teamB_total = teamB_total()
     )
     
-      dbWriteTable(pool_localdb, name = 'calculator_log',value = saved_data,append=TRUE)
+      try(dbWriteTable(pool_localdb, name = 'calculator_log',value = saved_data,append=TRUE))
   })
   
 } # end of server segment ----
