@@ -134,7 +134,7 @@ sever_joke <- function(){
   sever::sever(
   shiny::tagList(
     shiny::h1("Disconnected"),
-    shiny::p(shiny::em(joker::randomjoke())),
+    shiny::p(shiny::em(try(joker::randomjoke()))),
     shiny::tags$button(
       "Reload",
       style = "color:#000;background-color:#fff;",
@@ -144,4 +144,14 @@ sever_joke <- function(){
   ),
   bg_color = "#000"
 )
+}
+
+pool_save <- function(db_pool,tablename = 'calculator_log',dataframe){
+  
+  conn <- poolCheckout(db_pool)
+  
+  on.exit(poolReturn(conn),add = TRUE)
+  
+  DBI::dbWriteTable(conn,tablename,dataframe,append = TRUE)
+  
 }

@@ -4,6 +4,7 @@ suppressPackageStartupMessages({
   library(RSQLite)
   library(odbc)
   library(glue)
+  library(dplyr)
   
 })
 
@@ -12,13 +13,14 @@ db_server <- dbConnect(odbc(),'dynastyprocess_db')
 
 df_server <- dbGetQuery(db_server,'SELECT trade_id FROM dp_calculatorlogs')
 
-df_local <- dbGetQuery(db_local,'SELECT * from calculator_log')
+df_local <- dbGetQuery(db_local,'SELECT * from calculator_log',`synchronous`=NULL)
 
 df_upload <- df_local %>% 
   anti_join(df_server,by = 'trade_id')
 
 dbAppendTable(db_server,'dp_calculatorlogs',df_upload)
 dbExecute(db_local,glue_sql('DELETE FROM calculator_log WHERE trade_id IN ({df_upload$trade_id*});', .con = db_local))
+dbExecute(db_local,glue_sql('DELETE FROM calculator_log WHERE trade_id IN ({df_server$trade_id*});', .con = db_local))
 dbExecute(db_local,'vacuum;')
 
 dbDisconnect(db_local)
