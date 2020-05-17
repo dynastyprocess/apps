@@ -13,7 +13,7 @@ db_server <- dbConnect(odbc(),'dynastyprocess_db')
 
 df_server <- dbGetQuery(db_server,'SELECT trade_id FROM dp_calculatorlogs')
 
-df_local <- dbGetQuery(db_local,'SELECT * from calculator_log')
+df_local <- dbGetQuery(db_local,'SELECT * from calculator_log',`synchronous`=NULL)
 
 df_upload <- df_local %>% 
   anti_join(df_server,by = 'trade_id')

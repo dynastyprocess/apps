@@ -502,7 +502,9 @@ server <- function(input, output, session) {
       teamB_total = teamB_total()
     )
     
-      try(dbWriteTable(pool_localdb, name = 'calculator_log',value = saved_data,append=TRUE))
+      try({
+        pool_save(pool_localdb, 'calculator_log',saved_data)
+        })
   })
   
 } # end of server segment ----
