@@ -43,4 +43,4 @@ vignettes/*.pdf
 
 # ignore .pdata files
 
-*.pdata
+.pdata
