@@ -145,3 +145,13 @@ sever_joke <- function(){
   bg_color = "#000"
 )
 }
+
+pool_save <- function(db_pool,tablename = 'calculator_log',dataframe){
+  
+  conn <- poolCheckout(db_pool)
+  
+  on.exit(poolReturn(conn),add = TRUE)
+  
+  DBI::dbWriteTable(conn,tablename,dataframe,append = TRUE)
+  
+}
