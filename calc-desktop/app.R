@@ -86,7 +86,8 @@ ui <- dashboardPage(
                 column(width=12,
                        fluidRow(
                          box(
-                           title = 'Analysis', maximizable = TRUE, collapsible = FALSE, width = 4
+                           title = 'Analysis', maximizable = TRUE, collapsible = FALSE, width = 4,
+                           echarts4rOutput('trade_gauge')
                            ),
                          box(
                            title = 'Plot', maximizable = TRUE, collapsible = FALSE, width = 8
@@ -234,15 +235,9 @@ server <- function(input, output, session) {
       pull(Total)
   })
   
-  percent_diff <- reactive({if (teamA_total() > teamB_total())
-  {round(100*((teamA_total() - teamB_total())/teamB_total()))}
-    else if (teamA_total() < teamB_total())
-    {round(100*((teamB_total() - teamA_total())/teamA_total()))}
-    else
-    {0}
+  output$trade_gauge <- renderEcharts4r({
+    ui_gauge(teamA_total(),teamB_total())
   })
-  
-  
   
   # Save data to a sqlite file on server ----
   
