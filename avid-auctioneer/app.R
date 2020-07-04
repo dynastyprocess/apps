@@ -1,0 +1,255 @@
+suppressPackageStartupMessages({
+  # Data import
+  library(here)
+  # Data manipulation
+  library(tidyverse)
+  # Shiny
+  library(shiny)
+  library(bs4Dash)
+  library(shinyWidgets)
+  library(gt)
+  library(DT)
+})
+
+source('fn_ui_desktop.R')
+
+setwd(here())
+salaries <- read_csv("auctioneer_salaries.csv")
+
+get_ppg_rank <- function(input_name, input_year) {
+  rank <- salaries %>%
+    filter(ppg_year == input_year,
+           full_name == input_name) %>%
+    select(ppg_rank) %>%
+    pull()
+  
+  if(length(rank) == 0) {rank <- 9999}
+  
+  rank
+}
+
+get_position <- function(input_name, input_year) {
+  salaries %>%
+    filter(ppg_year == input_year,
+           full_name == input_name) %>%
+    select(position) %>%
+    pull()
+}
+
+get_games <- function(input_name, input_year) {
+  games <- salaries %>%
+    filter(ppg_year == input_year,
+           full_name == input_name) %>%
+    select(games) %>%
+    pull()
+  
+  if (length(games) == 0) {games <- 0}
+  
+  games
+}
+
+get_draft_year <- function(input_name) {
+  salaries %>%
+    filter(full_name == input_name) %>%
+    summarise(max(draft_year)) %>%
+    pull()
+}
+
+get_position_max <- function(input_pos, input_year) {
+  salaries %>%
+    filter(position == input_pos,
+           ppg_year == input_year) %>%
+    summarise(max(salary))
+}
+
+get_comparables <- function(input_name, input_year){
+  rank <- get_ppg_rank(input_name,input_year)
+  pos <- get_position(input_name,input_year)
+
+  if (get_draft_year(input_name) == 2020 | length(pos) == 0) {
+    return(tibble())
+  }
+  
+  rank_min <- ifelse(rank <= 3, 1, rank - 3)
+  rank_max <- ifelse(rank <= 3, 6, rank + 3)
+  
+  comps <- salaries %>% 
+    filter(ppg_year == input_year,
+           position == pos,
+           between(ppg_rank, rank_min, rank_max))
+  
+  min_drop <- ifelse(rank <= 3, 2, 1)
+  
+  minName<- comps %>%
+    filter(full_name != input_name) %>%
+    arrange(-ppg_rank) %>%
+    slice_min(salary, n = min_drop, with_ties = FALSE) %>%
+    select(full_name) %>%
+    pull()
+  
+  maxName <- comps %>%
+    filter(full_name != input_name) %>%
+    arrange(ppg_rank) %>%
+    slice_max(salary, n = 1, with_ties = FALSE) %>%
+    select(full_name) %>%
+    pull()
+  
+  if (rank <= 3) {maxName <- ''}
+  
+  
+  comps %>%
+    mutate(colorFlag = case_when(full_name == input_name ~ 'purple',
+                                 full_name %in% minName | full_name %in% maxName ~ 'red',
+                                 TRUE ~ 'green'))
+}
+
+create_gt <- function(df, input_player) {
+  
+  df %>%
+    gt() %>%
+    tab_style(
+      style = cell_fill(color = "lightgreen"),
+      locations = cells_body(
+        rows = colorFlag == "green")) %>%
+    tab_style(
+      style = cell_fill(color = "#EFD8CA"),
+      locations = cells_body(
+        rows = colorFlag == "red")) %>%
+    tab_style(
+      style = cell_fill(color = "#DFCAEF"),
+      locations = cells_body(
+        rows = colorFlag == "purple")) %>%
+    # cols_label(
+    #   full_name = "Player Name",
+    #   ppg_rank = "PPG Rank",
+    #   ppg = "PPG"
+    # ) %>%
+    cols_hide(columns = vars(draft_year, ppg_year, colorFlag)) %>%
+    tab_options(table.width = pct(100))
+  
+}
+
+# create_dt <- function(df) {
+#   df %>%
+#     select(-draft_year, -ppg_year) %>%
+#     datatable(
+#       class = "compact stripe nowrap",
+#       rownames= FALSE,
+#       options(
+#         scrollX=TRUE,
+#         paging=FALSE,
+#         searching=FALSE,
+#         columnDefs = list(list(visible=FALSE, targets=c(4))))
+#       ) %>%
+#     formatStyle(
+#       'colorFlag',
+#       target = 'row',
+#       backgroundColor = styleEqual(c('purple','red','green'), c('#DFCAEF','#EFD8CA','#DCEFCA'))
+#     )
+# }
+
+ui <- dashboardPage(
+  sidebar_collapsed = TRUE,
+  navbar = ui_header(),
+  sidebar = ui_sidebar(
+    menuItem('QO Explorer',tabName = 'qual',icon = 'table')),
+  dashboardBody(tabItems(
+    tabItem(tabName = 'qual',
+            titlePanel('Qualifying Offer Explorer'),
+            fluidRow(
+              box(#title = "Inputs",
+                status = "danger",
+                width = 4,
+                
+                column(width = 12,
+                       selectizeInput("selectPlayer",
+                                      label = "Select a Player:",
+                                      choices = unique(salaries$full_name),
+                                      selected = "Josh Allen"))),
+              box(status = "danger",
+                  width = 8,
+                  htmlOutput("salaryText"))
+            ),
+            fluidRow(
+              box(title = "2018 Comparisons",
+                  status = "danger",
+                  width = 6,
+                  gt_output("table18")),
+              box(title = "2019 Comparisons",
+                  status = "danger",
+                  width = 6,
+                  gt_output("table19"))
+            )
+    )
+  )
+  )
+)
+
+server <- function(input, output, session) {
+  
+  players18 <- reactive({
+    get_comparables(input$selectPlayer, 2018)
+  })
+  
+  players19 <- reactive({
+    get_comparables(input$selectPlayer, 2019)
+  })
+  
+  output$table18 <- render_gt({
+    req(input$selectPlayer)
+    req(length(players18()) > 0)
+  
+    
+    create_gt(players18(), input$selectPlayer)
+  })
+  
+  output$table19 <- render_gt({
+    req(input$selectPlayer)
+    req(length(players19()) > 0)
+    
+    create_gt(players19(), input$selectPlayer)
+  })
+  
+  output$salaryText <- renderText({
+    req(input$selectPlayer)
+    
+    if (get_draft_year(input$selectPlayer) == 2020) {
+      return("<span style=\"font-size: 28px;\">You picked a 2020 rookie! They don't have a PPG history to compare yet.</span>")
+    } else if (get_games(input$selectPlayer,2018) < 6 & get_games(input$selectPlayer,2019) < 6) {
+      return("<span style=\"font-size: 28px;\">This player has fewer than 6 games in both seasons.</span>")
+    }
+    
+    salaryNum <- players18() %>%
+      bind_rows(players19()) %>%
+      filter(colorFlag == "green") %>%
+      summarise(mean(salary)) %>%
+      round(1)
+    
+    if (get_ppg_rank(input$selectPlayer, 2018) <= 3 & get_ppg_rank(input$selectPlayer, 2019) <= 3){
+      salaryNum <- get_position_max(get_position(input$selectPlayer, 2019), 2019)
+    }
+    
+    str <- paste0("<span style=\"font-size: 28px;\">The Qualifying Offer for <strong><span style=\"color: rgb(226, 80, 65);\">", input$selectPlayer, "</span></strong> would've been <strong><span style=\"color: rgb(226, 80, 65);\">", salaryNum, "</span></strong> this offseason.</span>")
+    
+    if (get_ppg_rank(input$selectPlayer, 2018) <= 3 & get_ppg_rank(input$selectPlayer, 2019) <= 3){
+      str <- paste0(str, "<span style=\"font-size: 28px;\"> He finished in the top 3 both seasons.</span>")
+    } else if (get_games(input$selectPlayer,2018) < 6) {
+      str <- paste0(str, "<span style=\"font-size: 28px;\"> He had fewer than 6 games in 2018.</span>")
+    } else if (get_games(input$selectPlayer,2019) < 6) {
+      str <- paste0(str, "<span style=\"font-size: 28px;\"> He had fewer than 6 games in 2019.</span>")
+    }    
+    str
+    
+  })
+  
+  # output$table18 <- renderDT({
+  #   create_dt(players18())
+  # })
+  # 
+  # output$table19 <- renderDT({
+  #   create_dt(players19())
+  # })
+  
+}
+
+shinyApp(ui, server)
