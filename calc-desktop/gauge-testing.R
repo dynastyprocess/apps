@@ -46,21 +46,31 @@ trade_players <- tibble(team = c('Team A', 'Team B'),
 
 e_charts() %>%
   e_gauge(
-    value = 25,
-    name = 'Team B',
+    value = 85,
+    name = 'In Favour of Team B',
     min = -100,
     max = 100,
+    splitNumber = 8,
+    title = list(
+      fontSize = 20,
+      fontWeight = 'bold',
+      color = '#762a83' ## Green: '#1b7837' Purple: '#762a83'
+      ),
+    detail = list(
+      formatter = JS("function (value) {return Math.abs(value) + '%';}")
+      ),
+    axisLabel = list(
+      formatter = JS("function (value) {return Math.abs(value) + '%';}")
+      ),
     axisLine = list(
       lineStyle = list(
         color = list(
-          c(0.2, '#00441b'),
-          c(0.3, '#1b7837'),
-          c(0.4, '#5aae61'),
+          c(0.125, '#00441b'),
+          c(0.25, '#1b7837'),
+          c(0.375, '#5aae61'),
           c(0.5, '#a6dba0'),
-          c(0.6, '#c2a5cf'),
-          c(0.7, '#9970ab'),
-          c(0.8, '#762a83'),
+          c(0.625, '#c2a5cf'),
+          c(0.75, '#9970ab'),
+          c(0.875, '#762a83'),
           c(1, '#40004b'))))
-    
-  ) %>%
-  e_title("Trade Gauge")
+  )
