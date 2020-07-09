@@ -16,6 +16,16 @@ source('fn_ui_desktop.R')
 setwd(here())
 salaries <- read_csv("auctioneer_salaries.csv")
 
+# library(slider)
+# temp <- salaries %>% filter(ppg_year == 2019, ppg_rank/salary > 1)
+# temp <- salaries  %>% 
+#   filter(ppg_year == 2019) %>%
+#   arrange(position, ppg_rank) %>%
+#   group_by(position) %>%
+#   mutate(qual = slide_dbl(salary, mean, .before = 3, .after = 3, .complete = TRUE)) %>%
+#   ungroup() %>%
+#   mutate(diff = salary - qual)
+
 get_ppg_rank <- function(input_name, input_year) {
   rank <- salaries %>%
     filter(ppg_year == input_year,
@@ -23,7 +33,8 @@ get_ppg_rank <- function(input_name, input_year) {
     select(ppg_rank) %>%
     pull()
   
-  if(length(rank) == 0) {rank <- 9999}
+  if(length(rank) == 0 | is.null(rank)) {rank <- 9999}
+  else if(is.na(rank)) {rank <- 9999}
   
   rank
 }
@@ -66,7 +77,7 @@ get_comparables <- function(input_name, input_year){
   rank <- get_ppg_rank(input_name,input_year)
   pos <- get_position(input_name,input_year)
 
-  if (get_draft_year(input_name) == 2020 | length(pos) == 0) {
+  if (get_draft_year(input_name) == 2020 | length(rank) == 0 | rank == 9999) {
     return(tibble())
   }
   
@@ -100,7 +111,8 @@ get_comparables <- function(input_name, input_year){
   comps %>%
     mutate(colorFlag = case_when(full_name == input_name ~ 'purple',
                                  full_name %in% minName | full_name %in% maxName ~ 'red',
-                                 TRUE ~ 'green'))
+                                 TRUE ~ 'green'),
+           meanWeight = ifelse(input_year == 2018,1,3))
 }
 
 create_gt <- function(df, input_player) {
@@ -174,11 +186,13 @@ ui <- dashboardPage(
               box(title = "2018 Comparisons",
                   status = "danger",
                   width = 6,
-                  gt_output("table18")),
+                  gt_output("table18"),
+                  htmlOutput("year1Text")),
               box(title = "2019 Comparisons",
                   status = "danger",
                   width = 6,
-                  gt_output("table19"))
+                  gt_output("table19"),
+                  htmlOutput("year2Text"))
             )
     )
   )
@@ -210,6 +224,39 @@ server <- function(input, output, session) {
     create_gt(players19(), input$selectPlayer)
   })
   
+  output$year1Text <- renderText({
+    req(input$selectPlayer)
+    
+    if (get_games(input$selectPlayer,2018) < 6) {
+      paste0("<span style=\"font-size: 28px;\">",input$selectPlayer ," had fewer than 6 games in 2018.</span>")
+    } else {
+      salaryNumMedian<- players18() %>%
+        filter(colorFlag == "green") %>%
+        summarise(mean(salary)) %>%
+        round(1)
+      
+      paste0("<span style=\"font-size: 20px;\">The mean QO for <strong><span style=\"color: rgb(226, 80, 65);\">", input$selectPlayer, "</span></strong> would've been <strong><span style=\"color: rgb(226, 80, 65);\">", salaryNumMedian, "</span></strong> using only 2018.</span>")
+    }
+    
+  })
+  
+  output$year2Text <- renderText({
+    req(input$selectPlayer)
+    
+    if (get_games(input$selectPlayer,2019) < 6) {
+       paste0("<span style=\"font-size: 28px;\">",input$selectPlayer ," had fewer than 6 games in 2019.</span>")
+    }  else {
+      salaryNumMedian<- players19() %>%
+        filter(colorFlag == "green") %>%
+        summarise(mean(salary)) %>%
+        round(1)
+      
+      paste0("<span style=\"font-size: 20px;\">The mean QO for <strong><span style=\"color: rgb(226, 80, 65);\">", input$selectPlayer, "</span></strong> would've been <strong><span style=\"color: rgb(226, 80, 65);\">", salaryNumMedian, "</span></strong> using only 2019.</span>")
+    }
+
+    
+  })
+  
   output$salaryText <- renderText({
     req(input$selectPlayer)
     
@@ -225,30 +272,44 @@ server <- function(input, output, session) {
       summarise(mean(salary)) %>%
       round(1)
     
+    salaryNumWeight <- players18() %>%
+      bind_rows(players19()) %>%
+      filter(colorFlag == "green") %>%
+      summarise(weighted.mean(salary, meanWeight)) %>%
+      round(1)
+    
+    # salaryNumOutliers <- players18() %>%
+    #   bind_rows(players19()) %>%
+    #   filter(colorFlag != "purple") %>%
+    #   summarise(mean(salary)) %>%
+    #   round(1)
+    # 
+    # salaryNumAll<- players18() %>%
+    #   bind_rows(players19()) %>%
+    #   summarise(mean(salary)) %>%
+    #   round(1)
+    # 
+    # salaryNumMedian<- players18() %>%
+    #   bind_rows(players19()) %>%
+    #   summarise(median(salary)) %>%
+    #   round(1)
+    
     if (get_ppg_rank(input$selectPlayer, 2018) <= 3 & get_ppg_rank(input$selectPlayer, 2019) <= 3){
       salaryNum <- get_position_max(get_position(input$selectPlayer, 2019), 2019)
     }
     
-    str <- paste0("<span style=\"font-size: 28px;\">The Qualifying Offer for <strong><span style=\"color: rgb(226, 80, 65);\">", input$selectPlayer, "</span></strong> would've been <strong><span style=\"color: rgb(226, 80, 65);\">", salaryNum, "</span></strong> this offseason.</span>")
+    str <- paste0("<span style=\"font-size: 28px;\">The Qualifying Offer for <strong><span style=\"color: rgb(226, 80, 65);\">", input$selectPlayer, "</span></strong> would've been <strong><span style=\"color: rgb(226, 80, 65);\">", salaryNum, "</span></strong> this offseason under the current rules.<br> It would be <strong><span style=\"color: rgb(226, 80, 65);\">",salaryNumWeight,"</span></strong> weighting 2019 3 times higher than 2018. </span>")
+                  
+       #           It would be <strong><span style=\"color: rgb(226, 80, 65);\">",salaryNumOutliers,"</span></strong> when including the min/max each season.<br> It would be <strong><span style=\"color: rgb(226, 80, 65);\">", salaryNumAll,"</span></strong> when including the player's salary.<br> It would be <strong><span style=\"color: rgb(226, 80, 65);\">",salaryNumMedian ,"</span></strong> when using the median of all salaries.</span>")
+                  
     
     if (get_ppg_rank(input$selectPlayer, 2018) <= 3 & get_ppg_rank(input$selectPlayer, 2019) <= 3){
-      str <- paste0(str, "<span style=\"font-size: 28px;\"> He finished in the top 3 both seasons.</span>")
-    } else if (get_games(input$selectPlayer,2018) < 6) {
-      str <- paste0(str, "<span style=\"font-size: 28px;\"> He had fewer than 6 games in 2018.</span>")
-    } else if (get_games(input$selectPlayer,2019) < 6) {
-      str <- paste0(str, "<span style=\"font-size: 28px;\"> He had fewer than 6 games in 2019.</span>")
-    }    
+      str <- paste0(str, "<span style=\"font-size: 28px;\"><br> He finished in the top 3 both seasons.</span>")
+    } 
+    
     str
     
   })
-  
-  # output$table18 <- renderDT({
-  #   create_dt(players18())
-  # })
-  # 
-  # output$table19 <- renderDT({
-  #   create_dt(players19())
-  # })
   
 }
 
