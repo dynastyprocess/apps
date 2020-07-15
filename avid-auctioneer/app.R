@@ -14,7 +14,8 @@ suppressPackageStartupMessages({
 source('fn_ui_desktop.R')
 
 setwd(here())
-salaries <- read_csv("auctioneer_salaries.csv")
+salaries <- read_csv("auctioneer_salaries.csv") %>%
+  filter(!is.na(ppg_rank))
 
 # library(slider)
 # temp <- salaries %>% filter(ppg_year == 2019, ppg_rank/salary > 1)
@@ -73,16 +74,33 @@ get_position_max <- function(input_pos, input_year) {
     summarise(max(salary))
 }
 
+get_position_count <- function(input_pos, input_year) {
+  salaries %>%
+    filter(position == input_pos,
+           ppg_year == input_year) %>%
+    tally() %>%
+    pull()
+}
+
 get_comparables <- function(input_name, input_year){
   rank <- get_ppg_rank(input_name,input_year)
   pos <- get_position(input_name,input_year)
+  pos_tally <- ifelse(is_empty(pos), 0, get_position_count(pos, input_year))
 
   if (get_draft_year(input_name) == 2020 | length(rank) == 0 | rank == 9999) {
     return(tibble())
   }
   
-  rank_min <- ifelse(rank <= 3, 1, rank - 3)
-  rank_max <- ifelse(rank <= 3, 6, rank + 3)
+  rank_min <- case_when(rank <= 3 ~ 1L,
+                        pos_tally - rank <= 3 ~ as.integer(pos_tally - 6),
+                        TRUE ~ as.integer(rank - 3))
+  
+  rank_max <- case_when(rank <= 3 ~ 6L,
+                        pos_tally - rank <= 3 ~ as.integer(pos_tally),
+                        TRUE ~ as.integer(rank + 3))
+  
+  # rank_min <- ifelse(rank <= 3, 1, rank - 3)
+  # rank_max <- ifelse(rank <= 3, 6, rank + 3)
   
   comps <- salaries %>% 
     filter(ppg_year == input_year,
@@ -140,25 +158,6 @@ create_gt <- function(df, input_player) {
     tab_options(table.width = pct(100))
   
 }
-
-# create_dt <- function(df) {
-#   df %>%
-#     select(-draft_year, -ppg_year) %>%
-#     datatable(
-#       class = "compact stripe nowrap",
-#       rownames= FALSE,
-#       options(
-#         scrollX=TRUE,
-#         paging=FALSE,
-#         searching=FALSE,
-#         columnDefs = list(list(visible=FALSE, targets=c(4))))
-#       ) %>%
-#     formatStyle(
-#       'colorFlag',
-#       target = 'row',
-#       backgroundColor = styleEqual(c('purple','red','green'), c('#DFCAEF','#EFD8CA','#DCEFCA'))
-#     )
-# }
 
 ui <- dashboardPage(
   sidebar_collapsed = TRUE,
@@ -272,12 +271,12 @@ server <- function(input, output, session) {
       summarise(mean(salary)) %>%
       round(1)
     
-    salaryNumWeight <- players18() %>%
-      bind_rows(players19()) %>%
-      filter(colorFlag == "green") %>%
-      summarise(weighted.mean(salary, meanWeight)) %>%
-      round(1)
-    
+    # salaryNumWeight <- players18() %>%
+    #   bind_rows(players19()) %>%
+    #   filter(colorFlag == "green") %>%
+    #   summarise(weighted.mean(salary, meanWeight)) %>%
+    #   round(1)
+    # 
     # salaryNumOutliers <- players18() %>%
     #   bind_rows(players19()) %>%
     #   filter(colorFlag != "purple") %>%
@@ -298,9 +297,7 @@ server <- function(input, output, session) {
       salaryNum <- get_position_max(get_position(input$selectPlayer, 2019), 2019)
     }
     
-    str <- paste0("<span style=\"font-size: 28px;\">The Qualifying Offer for <strong><span style=\"color: rgb(226, 80, 65);\">", input$selectPlayer, "</span></strong> would've been <strong><span style=\"color: rgb(226, 80, 65);\">", salaryNum, "</span></strong> this offseason under the current rules.<br> It would be <strong><span style=\"color: rgb(226, 80, 65);\">",salaryNumWeight,"</span></strong> weighting 2019 3 times higher than 2018. </span>")
-                  
-       #           It would be <strong><span style=\"color: rgb(226, 80, 65);\">",salaryNumOutliers,"</span></strong> when including the min/max each season.<br> It would be <strong><span style=\"color: rgb(226, 80, 65);\">", salaryNumAll,"</span></strong> when including the player's salary.<br> It would be <strong><span style=\"color: rgb(226, 80, 65);\">",salaryNumMedian ,"</span></strong> when using the median of all salaries.</span>")
+    str <- paste0("<span style=\"font-size: 28px;\">The Qualifying Offer for <strong><span style=\"color: rgb(226, 80, 65);\">", input$selectPlayer, "</span></strong> would've been <strong><span style=\"color: rgb(226, 80, 65);\">", salaryNum, "</span></strong> this offseason.</span>")
                   
     
     if (get_ppg_rank(input$selectPlayer, 2018) <= 3 & get_ppg_rank(input$selectPlayer, 2019) <= 3){
