@@ -14,9 +14,10 @@ suppressPackageStartupMessages({
   library(bs4Dash)
   library(shinyWidgets)
   library(DT)
+  library(reactable)
 })
 
-source('../calculator-internal/fn_ui_desktop.R')
+source('fn_ui_desktop.R')
 
 setwd(here())
 epdata <- read_parquet("ep_1999_2019.pdata") %>% filter(season >= 2018)
@@ -29,11 +30,11 @@ week_master <- epdata %>%
 
 
 ui <- dashboardPage(
-  sidebar_collapsed = FALSE,
+  sidebar_collapsed = TRUE,
   navbar = ui_header(),
   sidebar = ui_sidebar(
     menuItem('Data Tables',tabName = 'data', icon = 'table'),
-    menuItem('Weekly Breakdowns',tabName = 'weekly',icon = 'chart-line'),
+    menuItem('Weekly Chart',tabName = 'weekly',icon = 'chart-line'),
     menuItem('Trends',tabName = 'trends',icon = 'send'),
     menuItem('League Analysis',tabName = 'league',icon = 'trophy'),
     menuItem('About',tabName = 'about',icon = 'question-circle')
@@ -41,7 +42,7 @@ ui <- dashboardPage(
   dashboardBody(
     tabItems(
       tabItem(tabName = 'data',
-              titlePanel("EP Charts"),
+              titlePanel("Data Tables"),
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
@@ -49,7 +50,7 @@ ui <- dashboardPage(
                     column(width = 5,
                            radioGroupButtons("selectCol",
                                              "Select Columns:",
-                                             choices = c("Exp Points","Pass Stats","Rush Stats","Rec Stats","Total Stats","Rate Stats"),
+                                             choices = c("Exp Points","Pass Stats","Rush Stats","Rec Stats","Total Stats","AY Stats"),
                                              selected = "Exp Points",
                                              status = "danger"),
                            awesomeRadio("weeklyRadio",
@@ -88,11 +89,11 @@ ui <- dashboardPage(
               box(title = "Table",
                   width = 12,
                   fluidRow(width = 12,
-                           DTOutput("table"))
+                           reactableOutput("table"))
               )
       ),
       tabItem(tabName = 'weekly',
-              titlePanel('Weekly Breakdowns'),
+              titlePanel('Weekly Charts'),
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
@@ -247,47 +248,98 @@ server <- function(input, output, session) {
                           "Pass Stats" = rlang::exprs(starts_with("pass")),
                           "Rush Stats" = rlang::exprs(starts_with("rush")),
                           "Rec Stats" = rlang::exprs(starts_with("rec")),
-                          "Total Stats" = rlang::exprs(starts_with("total")))
+                          "Total Stats" = rlang::exprs(starts_with("total")),
+                          "AY Stats" = rlang::exprs(starts_with("rec"), starts_with("total"), starts_with("pass")))
+    
+                          #"AY Stats" = rlang::exprs(rec_ay,rec_tar,rec_yd,total_fp_x,total_fp,pass_ay_team,pass_att_team,total_fp_team_x,total_fp_team))
     
     arrange_field <- switch(input$selectCol,
                           "Exp Points" = rlang::exprs(total_fp_x),
                           "Pass Stats" =  rlang::exprs(pass_fp_x),
                           "Rush Stats" =  rlang::exprs(rush_fp_x),
                           "Rec Stats" =  rlang::exprs(rec_fp_x),
-                          "Total Stats" =  rlang::exprs(total_fp_x))
+                          "Total Stats" =  rlang::exprs(total_fp_x),
+                          "AY Stats" = rlang::exprs(WOPR))
     
     epdata %>%
       filter((team == input$selectTeam2 | input$selectTeam2 == "All"),
              (gsis_pos %in% input$selectPos2 | input$selectPos2 == "All"),
              season %in% input$selectSeason2) %>%
-      select(season, week, gsis_name, team, gsis_pos, !!!field_names, -contains("_team")) %>%
-      {if (input$weeklyRadio == "Weekly Average")
-        group_by(., gsis_name, team, gsis_pos) %>%
+      {if (input$selectCol == "AY Stats")
+        select(., Season = season, Week = week, Name = gsis_name, Team = team, Pos = gsis_pos, sort(!!!field_names))
+        else select(., Season = season, Week = week, Name = gsis_name, Team = team, Pos = gsis_pos, sort(!!!field_names),
+                    -contains("_team"), -contains("proxy"))} %>%
+      {if (input$selectCol == "AY Stats")
+        group_by(., Name, Team, Pos) %>% 
+          summarise(games = n(),
+                    rec_comp = sum(rec_comp, na.rm = TRUE),
+                    rec_tar =  sum(rec_tar, na.rm = TRUE),
+                    rec_yd = sum(rec_yd, na.rm = TRUE),
+                    rec_ay = sum(rec_ay, na.rm = TRUE),
+                    rec_td = sum(rec_td, na.rm = TRUE),
+                    rec_adot = sum(rec_ay, na.rm = TRUE) / sum(rec_tar, na.rm = TRUE),
+                    rec_ay_share = sum(rec_ay, na.rm = TRUE) / sum(pass_ay_team, na.rm = TRUE),
+                    rec_tgt_share = sum(rec_tar, na.rm = TRUE) / sum(pass_att_team, na.rm = TRUE),
+                    WOPR = 1.5*sum(rec_tar, na.rm = TRUE) / sum(pass_att_team, na.rm = TRUE) + 0.7*sum(rec_ay, na.rm = TRUE) / sum(pass_ay_team, na.rm = TRUE),
+                    RACR = sum(rec_yd, na.rm = TRUE) / sum(rec_ay, na.rm = TRUE),
+                    YPTPA = sum(rec_yd, na.rm = TRUE) / sum(pass_att_team, na.rm = TRUE),
+                    total_fp_x_share = sum(total_fp_x, na.rm = TRUE) / sum(total_fp_team_x, na.rm = TRUE),
+                    total_fp_share = sum(total_fp, na.rm = TRUE) / sum(total_fp_team, na.rm = TRUE))
+        else if (input$weeklyRadio == "Weekly Average")
+          group_by(., Name, Team, Pos) %>%
           summarise(games = n(),
                     across(!!!field_names, ~mean(.x, na.rm = TRUE))) 
         else if (input$weeklyRadio == "Totals")
-          group_by(., gsis_name, team, gsis_pos) %>%
+          group_by(., Name, Team, Pos) %>%
           summarise(games = n(),
-                    across(!!!field_names, ~sum(.x, na.rm = TRUE))) 
-        
+                    across(!!!field_names, ~sum(.x, na.rm = TRUE)))
         else .} %>% 
       ungroup() %>% 
-      mutate(across(where(is.numeric), ~round(.x, 1))) %>% 
+      {if (input$selectCol == "AY Stats")
+        mutate(., across(where(is.numeric), ~round(.x, 2)))
+        else mutate(., across(where(is.numeric), ~round(.x, 1))) } %>% 
       arrange(-(!!!arrange_field))
     
   })
   
-  output$table <- renderDT({
-    #req(input$weeklyRadio == "Weekly")
-    
+  # output$table <- renderDT({
+  #   #req(input$weeklyRadio == "Weekly")
+  #   
+  #   weeklyEP2() %>% 
+  #     datatable(
+  #       class = "compact stripe nowrap",
+  #       rownames=T,
+  #       options(
+  #         scrollX=TRUE,
+  #         paging=FALSE,
+  #         searching=FALSE))
+  # })
+  
+  
+  output$table <- renderReactable({
     weeklyEP2() %>% 
-      datatable(
-        class = "compact stripe nowrap",
-        rownames=T,
-        options(
-          scrollX=TRUE,
-          paging=FALSE,
-          searching=FALSE))
+      reactable(
+        defaultColDef = colDef(
+          header = function(value) str_to_upper(gsub("_", " ", value, fixed = TRUE)),
+          cell = function(value) format(value, nsmall = 1),
+          align = "center",
+          minWidth = 90,
+          #headerStyle = list(background = "#f7f7f8")
+        ),
+        columns = list(
+          Name = colDef(minWidth = 150)  # overrides the default
+        ),
+        bordered = TRUE,
+        highlight = TRUE,
+        #searchable = TRUE,
+        defaultPageSize = 25,
+        showPageSizeOptions = TRUE,
+        striped = TRUE,
+        compact = TRUE,
+        width = "100%"
+      )
+    
+    
   })
 }
 

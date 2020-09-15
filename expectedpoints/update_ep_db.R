@@ -24,6 +24,8 @@ df_fetch <- dbFetch(df)
 
 pbp <- df_fetch
 
+dbDisconnect(con)
+
 #rosters <- read_csv("https://github.com/guga31bb/nflfastR-data/raw/master/roster-data/roster.csv")
 rosters <- read_csv("https://raw.githubusercontent.com/samhoppen/NFL_Positions/master/nfl_positions_2011_2020.csv")
 
@@ -276,7 +278,7 @@ all_games <-
     pass_td_team = sum(pass_td, na.rm = TRUE),
     pass_ay_team = sum(pass_ay, na.rm = TRUE),
     pass_att_team = sum(pass_att, na.rm = TRUE),
-    pass_comp_team = sum(pass_att, na.rm = TRUE),
+    pass_comp_team = sum(pass_comp, na.rm = TRUE),
     pass_fp_team_x = sum(pass_fp_x, na.rm = TRUE),
     pass_yd_team_x = sum(pass_yd_x, na.rm = TRUE),
     pass_td_team_x = sum(pass_td_x, na.rm = TRUE),
