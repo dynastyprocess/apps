@@ -19,7 +19,7 @@ suppressPackageStartupMessages({
 
 source('fn_ui_desktop.R')
 
-setwd(here())
+setwd(here::here())
 epdata <- read_parquet("ep_1999_2019.pdata") %>% filter(season >= 2018)
 vars <- epdata %>% select(contains("pass"), contains("rush"), contains("rec"), contains("total")) %>% colnames()
 week_seasons <- epdata %>% arrange(season, week) %>% distinct(week_season) %>% as_vector()
@@ -31,10 +31,10 @@ week_master <- epdata %>%
 
 ui <- dashboardPage(
   sidebar_collapsed = TRUE,
-  navbar = ui_header(),
+  navbar = ui_header("Expected Points App"),
   sidebar = ui_sidebar(
-    menuItem('Data Tables',tabName = 'data', icon = 'table'),
     menuItem('Weekly Chart',tabName = 'weekly',icon = 'chart-line'),
+    menuItem('Data Tables',tabName = 'data', icon = 'table'),
     menuItem('Trends',tabName = 'trends',icon = 'send'),
     menuItem('League Analysis',tabName = 'league',icon = 'trophy'),
     menuItem('About',tabName = 'about',icon = 'question-circle')
