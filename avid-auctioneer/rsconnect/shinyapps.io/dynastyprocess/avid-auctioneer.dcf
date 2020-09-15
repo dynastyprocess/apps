@@ -1,0 +1,13 @@
+name: avid-auctioneer
+title: avid-auctioneer
+username:
+account: dynastyprocess
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2535108
+bundleId: 3355387
+url: https://dynastyprocess.shinyapps.io/avid-auctioneer/
+when: 1593984806.82882
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: test.R

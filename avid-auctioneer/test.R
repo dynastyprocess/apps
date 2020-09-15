@@ -14,7 +14,7 @@ get_playerscore <- function(year,week){
 }
 
 nested_ppg <- crossing(year = 2018:2019,
-               week = 1:16) %>%
+               week = 1:1) %>%
   mutate(playerscore = map2(year,week,get_playerscore))
 
 mfl_ppg <- nested_ppg %>%
