@@ -266,7 +266,7 @@ server <- function(input, output, session) {
              (gsis_pos %in% input$selectPos2 | input$selectPos2 == "All"),
              season %in% input$selectSeason2) %>%
       {if (input$selectCol == "AY Stats")
-        select(., Season = season, Week = week, Name = gsis_name, Team = team, Pos = gsis_pos, sort(!!!field_names))
+        select(., Season = season, Week = week, Name = gsis_name, Team = team, Pos = gsis_pos, !!!field_names)
         else select(., Season = season, Week = week, Name = gsis_name, Team = team, Pos = gsis_pos, sort(!!!field_names),
                     -contains("_team"), -contains("proxy"))} %>%
       {if (input$selectCol == "AY Stats")
