@@ -315,7 +315,16 @@ all_games <-
   #arrange(season, week) %>%
   mutate(week_season_num = cur_group_id()) %>%
   ungroup() %>%
-  select(season, week, week_season, week_season_num, team, gsis_game_id = game_id, gsis_id = player_id, gsis_name, gsis_pos, where(is.numeric))
+  select(Season = season,
+         Week = week,
+         week_season,
+         week_season_num,
+         Team = team,
+         gsis_game_id = game_id,
+         gsis_id = player_id,
+         Name = gsis_name,
+         Pos = gsis_pos,
+         where(is.numeric))
 
 # skim(all_games)
 # 
