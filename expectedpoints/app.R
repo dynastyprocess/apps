@@ -4,24 +4,27 @@ suppressPackageStartupMessages({
   library(DBI)
   library(RSQLite)
   library(here)
+  
   # Data manipulation
   library(tidyverse)
   library(lubridate)
   library(glue)
   library(magrittr)
+  
+  # Plotting
+  library(ggimage)
+  library(grid)
+  library(ggrepel)
+  library(nflfastR)
+  
   # Shiny
   library(shiny)
   library(bs4Dash)
   library(shinyWidgets)
-  library(DT)
   library(reactable)
   library(gfonts)
+  # library(DT)
   
-  # Joe
-  # library(nflfastR)
-  library(ggimage)
-  library(grid)
-  library(ggrepel)
 })
 
 source('fn_ui_desktop.R')
@@ -81,19 +84,20 @@ vars2 <- season_data %>% select(contains("team"), -pass_att_team, -pass_ay_team,
 # UI section --------------------------------------------------------------
 ui <- dashboardPage(
   sidebar_collapsed = TRUE,
+  title = "Expected Points - DynastyProcess.com",
   navbar = ui_header("Expected Points App"),
   sidebar = ui_sidebar(
-    menuItem('Weekly Chart',tabName = 'weekly',icon = 'chart-line'),
+    menuItem('Weekly EP',tabName = 'weekly',icon = 'chart-line'),
     menuItem('Data Tables',tabName = 'data', icon = 'table'),
     #menuItem('Trends',tabName = 'trends',icon = 'send'),
-    menuItem('League Trends',tabName = 'league',icon = 'trophy'),
+    menuItem('Team Level Trends',tabName = 'league',icon = 'trophy'),
     menuItem('About',tabName = 'about',icon = 'question-circle')
   ),
   dashboardBody(
     use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
     tabItems(
       tabItem(tabName = 'weekly',
-              titlePanel('Weekly Charts'),
+              h1('Weekly Expected Points',style = "padding-left:10px;"),
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
@@ -140,16 +144,18 @@ ui <- dashboardPage(
                   )
               ),
               box(#title = "Plot",
-                  width = 12,
-                  fluidRow(width = 12,
-                           plotOutput("pivotGraph", height = "35em"))),
+                maximizable = TRUE,
+                width = 12,
+                fluidRow(width = 12,
+                         plotOutput("pivotGraph", height = "35em"))),
               box(#title = "Table",
                   width = 12,
                   fluidRow(width = 12,
                            reactableOutput("teamPivot", width = "100%")))
       ),
       tabItem(tabName = 'data',
-              titlePanel("Data Tables"),
+              # titlePanel("Data Tables"),
+              h1("Data Tables", style = "padding-left:10px;"),
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
@@ -195,17 +201,18 @@ ui <- dashboardPage(
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE),
-                                       multiple = TRUE)),
-                    box(#title = "Table",
+                                       multiple = TRUE)))),
+                    box(title = "Data",
+                        status = "danger",
+                        maximizable = TRUE,
                         width = 12,
-                        fluidRow(width = 12,
-                                 reactableOutput("table", width = "100%")))
-                  )
-              )
+                        fluidRow(
+                          width = 12,
+                          reactableOutput("table", width = "100%")))
               
       ),
       tabItem(tabName = 'league',
-              titlePanel("League Trends"),
+              h1("Team Level Trends", style = "padding-left:10px;"),
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
@@ -228,12 +235,14 @@ ui <- dashboardPage(
                   )
               ),
               box(width = 12,
+                  status = "danger",
+                  title = "Plot",
                   #height = "150%",
                   fluidRow(width = 12,
                            plotOutput("leaguePlot", height = "50em")))
       ),
       tabItem(tabName='about',
-              titlePanel('About - Expected Points'),
+              h1('About - Expected Points', style = "padding-left:10px"),
               box(status = "danger",
                   width = 12,
                   fluidRow(column(12,
@@ -468,11 +477,12 @@ server <- function(input, output, session) {
           header = function(value) str_to_upper(gsub("_", " ", value, fixed = TRUE)),
           cell = function(value) format(value, nsmall = 1),
           align = "center",
-          #minWidth = 90,
+          minWidth = 80,
           #headerStyle = list(background = "#f7f7f8")
         ),
         columns = list(
           Name = colDef(style = sticky_style(),
+                        minWidth = 100,
                         headerStyle = sticky_style())
         ),
         bordered = TRUE,
