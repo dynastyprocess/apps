@@ -6,6 +6,6 @@ https://predictivefootball.com/using-air-yards-to-calculate-expected-fantasy-poi
 
 https://predictivefootball.com/week-2-expected-fantasy-points-rushing-and-receiving/ 
 
-We used a lot of the same components, but combined a few other factors into a multiple regression model (absolute airyards makes a comeback!) and predicted the individual components of fantasy scoring (rush yards, rush TDs, receptions, receiving yards, receiving TDs, first downs). 
+We used a lot of the same components, but combined a few other factors into a multiple regression model and predicted the individual components of fantasy scoring (yards, TDs, receptions). 
 
-This wouldn't be possible without the fantastic resource that is NFLscrapR - both for training the model as well as allowing us realtime access to the 2019 NFL season. Data is updated weekly (we tried direct connecting but it crashed the server!)
+This wouldn't be possible without the fantastic resource that is nflfastR - both for training the model as well as allowing us realtime access to the 2020 NFL season. Data is updated weekly.

@@ -15,12 +15,19 @@ suppressPackageStartupMessages({
   library(shinyWidgets)
   library(DT)
   library(reactable)
+  
+  # Joe
+  library(nflfastR)
+  library(ggimage)
+  library(grid)
+  library(ggrepel)
 })
 
 source('fn_ui_desktop.R')
 options(warn=-1)
-#options(error=recover)
-#options(shiny.trace = TRUE)
+
+
+# Create Functions --------------------------------------------------------
 
 get_players_sorted <- function(data, var) {
   
@@ -32,23 +39,54 @@ get_players_sorted <- function(data, var) {
     pull()
 }
 
+sticky_style <- function(left = TRUE) {
+  style <- list(position = "sticky", background = "#f7f7f8", zIndex = 1)
+  if (left) {
+    style <- c(style, list(left = 0, borderRight = "1px solid #eee"))
+  } else {
+    style <- c(style, list(right = 0, borderLeft = "1px solid #eee"))
+  }
+  style
+}
+
+colClean <- function(x) {str_to_upper(gsub("_", " ", colnames(x), fixed = TRUE))}
+
+# Import Data -------------------------------------------------------------
+
 setwd(here::here())
-epdata <- read_parquet("ep_1999_2019.pdata") %>% filter(Season >= 2018)
-vars <- epdata %>% select(contains("pass"), contains("rush"), contains("rec"), contains("total")) %>% colnames()
+epdata <- read_parquet("ep_1999_2019.pdata") %>% filter(Season >= 2017)
+vars <- epdata %>% select(contains("pass"), contains("rush"), contains("rec"), contains("total"), -contains("team"), -contains("proxy")) %>%
+  colClean() %>% sort()
 week_seasons <- epdata %>% arrange(Season, Week) %>% distinct(week_season) %>% as_vector()
 
 week_master <- epdata %>%
   select(Season, Week, week_season, week_season_num) %>%
   distinct()
 
+logos <- nflfastR::teams_colors_logos
+
+season_data <- epdata %>%
+  filter(Week <= 17) %>% 
+  select(Season, Team, gsis_game_id, contains("team")) %>% 
+  unique() %>% 
+  group_by(Season,Team) %>% 
+  summarise(games=n_distinct((gsis_game_id)),
+            across(contains("team"), ~sum(.x, na.rm = TRUE))) %>% 
+  ungroup() %>% 
+  inner_join(select(logos, team_abbr, team_logo_wikipedia),by=c("Team"="team_abbr"))
+
+vars2 <- season_data %>% select(contains("team"), -pass_att_team, -pass_ay_team, -pass_comp_team, -Team, -team_logo_wikipedia,
+                                -ends_with("x"), -ends_with("diff")) %>% colClean() %>% sort()
+
+# UI section --------------------------------------------------------------
 ui <- dashboardPage(
   sidebar_collapsed = TRUE,
   navbar = ui_header("Expected Points App"),
   sidebar = ui_sidebar(
     menuItem('Weekly Chart',tabName = 'weekly',icon = 'chart-line'),
     menuItem('Data Tables',tabName = 'data', icon = 'table'),
-    menuItem('Trends',tabName = 'trends',icon = 'send'),
-    menuItem('League Analysis',tabName = 'league',icon = 'trophy'),
+    #menuItem('Trends',tabName = 'trends',icon = 'send'),
+    menuItem('League Trends',tabName = 'league',icon = 'trophy'),
     menuItem('About',tabName = 'about',icon = 'question-circle')
   ),
   dashboardBody(
@@ -63,12 +101,12 @@ ui <- dashboardPage(
                            selectizeInput("selectVar",
                                           "Select Variable:",
                                           choices = vars,
-                                          selected = "total_fp_x"),
+                                          selected = "TOTAL FP X"),
                            checkboxInput("pivot_trendlines", label = "Display Trendlines", value = TRUE)
                     ),
                     column(width = 4,
                            pickerInput("selectTeam",
-                                       "Select Team:",
+                                       "Select Teams:",
                                        choices = sort(unique(epdata$Team)),
                                        selected = "SEA",
                                        multiple = TRUE,
@@ -76,7 +114,7 @@ ui <- dashboardPage(
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE)),
                            pickerInput("selectPos",
-                                       "Select Position:",
+                                       "Select Positions:",
                                        choices = c("QB", "RB", "WR", "TE"),
                                        selected = c("RB","WR","TE"),
                                        multiple = TRUE,
@@ -84,8 +122,8 @@ ui <- dashboardPage(
                     ),
                     column(width = 4,
                            pickerInput("selectSeason",
-                                       "Select Season:",
-                                       choices = sort(unique(epdata$Season), TRUE),
+                                       "Select Seasons:",
+                                       choices = sort(unique(epdata$Season)),
                                        selected = c("2019","2020"),
                                        multiple = TRUE),
                            pickerInput("selectPlayers",
@@ -100,11 +138,11 @@ ui <- dashboardPage(
                     
                   )
               ),
-              box(title = "Plot",
+              box(#title = "Plot",
                   width = 12,
                   fluidRow(width = 12,
                            plotOutput("pivotGraph", height = "600px"))),
-              box(title = "Table",
+              box(#title = "Table",
                   width = 12,
                   fluidRow(width = 12,
                            reactableOutput("teamPivot", width = "100%")))
@@ -121,14 +159,16 @@ ui <- dashboardPage(
                                              choices = c("Exp Points","Pass Stats","Rush Stats","Rec Stats","Total Stats","AY Stats"),
                                              selected = "Exp Points",
                                              status = "danger"),
-                           awesomeRadio("weeklyRadio",
-                                        "Data type",
-                                        choices = c("Weekly","Weekly Average","Totals"),
-                                        selected = "Weekly Average",
-                                        status = "danger")),
+                           conditionalPanel(
+                             condition = "input.selectCol != 'AY Stats'",
+                             radioGroupButtons("weeklyRadio",
+                                               "Aggregate Data:",
+                                               choices = c("Weekly","Weekly Average","Totals"),
+                                               selected = "Weekly Average",
+                                               status = "danger"))),
                     column(width = 4,
                            pickerInput("selectTeam2",
-                                       "Select Team:",
+                                       "Select Teams:",
                                        choices = sort(unique(epdata$Team)),
                                        selected = "SEA",
                                        multiple = TRUE,
@@ -136,15 +176,15 @@ ui <- dashboardPage(
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE)),
                            pickerInput("selectPos2",
-                                       "Select Position:",
+                                       "Select Positions:",
                                        choices = c("QB", "RB", "WR", "TE"),
                                        selected = c("RB","WR","TE"),
                                        multiple = TRUE,
                                        options = list(`actions-box` = TRUE))),
                     column(width = 3,
                            pickerInput("selectSeason2",
-                                       "Select Season:",
-                                       choices = sort(unique(epdata$Season), TRUE),
+                                       "Select Seasons:",
+                                       choices = sort(unique(epdata$Season)),
                                        selected = "2020",
                                        multiple = TRUE),
                            pickerInput("selectPlayers2",
@@ -154,37 +194,78 @@ ui <- dashboardPage(
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE),
                                        multiple = TRUE)),
-                    box(title = "Table",
+                    box(#title = "Table",
                         width = 12,
                         fluidRow(width = 12,
                                  reactableOutput("table", width = "100%")))
                   )
               )
               
+      ),
+      tabItem(tabName = 'league',
+              titlePanel("League Trends"),
+              box(title = "Inputs",
+                  status = "danger",
+                  width = 12,
+                  fluidRow(
+                    column(width=4,
+                           selectizeInput("selectVar2",
+                                          "Select Variable:",
+                                          choices = vars2,
+                                          selected = "PASS TD TEAM")),
+                    column(width=4,pickerInput("selectTeam3",
+                                               "Select Teams:",
+                                               choices = sort(unique(season_data$Team)),
+                                               options = list(`actions-box` = TRUE,
+                                                              `selected-text-format`= "count > 1",
+                                                              `live-search` = TRUE,
+                                                              `max-options` = 5),
+                                               selected = c("SEA","GB","KC","BAL"),
+                                               multiple = TRUE))
+                    
+                  )
+              ),
+              box(width = 12,
+                  #height = "150%",
+                  fluidRow(width = 12,
+                           plotOutput("leaguePlot", height = "800px")))
+      ),
+      tabItem(tabName='about',
+              titlePanel('About - Expected Points'),
+              box(status = "danger",
+                  width = 12,
+                  fluidRow(column(12,
+                                  includeMarkdown('about_ep.md'))))
       )
     )
   )
 )
-  
+
+
+
+# Server Section ----------------------------------------------------------
 
 server <- function(input, output, session) {
+  
+  inputVar <- reactive({str_to_lower(gsub(" ", "_", input$selectVar, fixed = TRUE))})
   
   weeklyEP <- reactive({
     epdata %>%
       filter(Team %in% input$selectTeam,
              Pos %in% input$selectPos,
              Season %in% input$selectSeason) %>%
-      select(Season, Week, week_season, week_season_num, gsis_id, Name, Team, Pos, input$selectVar)
+      select(Season, Week, week_season, week_season_num, gsis_id, Name, Team, Pos, inputVar())
 
   })
   
   observeEvent({input$selectTeam
     input$selectPos
     input$selectSeason
-    input$selectVar},{
+    #inputVar()
+    },{
       updatePickerInput(session, 'selectPlayers',
-                           choices = get_players_sorted(weeklyEP(), input$selectVar),
-                           selected = head(get_players_sorted(weeklyEP(), input$selectVar),5))
+                           choices = get_players_sorted(weeklyEP(), inputVar()),
+                           selected = head(get_players_sorted(weeklyEP(), inputVar()),5))
     })
   
   weeklyEP_playerfilter <- reactive({
@@ -199,10 +280,10 @@ server <- function(input, output, session) {
       arrange(week_season_num) %>%
       select(-week_season_num, -Week, -Season) %>%
       group_by(gsis_id) %>%
-      mutate(Total = sum(.data[[input$selectVar]], na.rm = TRUE),
-             Average = mean(.data[[input$selectVar]], na.rm = TRUE)) %>%
+      mutate(Total = sum(.data[[inputVar()]], na.rm = TRUE),
+             Average = mean(.data[[inputVar()]], na.rm = TRUE)) %>%
       pivot_wider(names_from = week_season,
-                  values_from = input$selectVar) %>%
+                  values_from = inputVar()) %>%
       ungroup() %>%
       select(Name, Team, Pos, contains("Week"), Total, Average) %>%
       mutate_if(is.numeric, round, digits = 1) %>%
@@ -219,30 +300,29 @@ server <- function(input, output, session) {
              week_season_num = case_when(player_weeks > 2 ~ week_season_num,
                                          TRUE ~ 0L)) %>%
       ungroup() %>%
-      mutate(week_season = fct_reorder(week_season, week_season_num))
+      mutate(week_season = forcats::fct_reorder(week_season, week_season_num))
     
     #plot_breaks <- unique(pivotgraph_data$week_season)
     
     pivotgraph_data %>% 
-      ggplot(aes(x = week_season, y = .data[[input$selectVar]], color = Name)) +
+      ggplot(aes(x = week_season, y = .data[[inputVar()]], color = Name)) +
       geom_point(size = 3) +
       theme_bw() + 
-      labs(x="Week", y=input$selectVar, title=paste0("Weekly Summary \n",input$selectVar,": ",input$selectTeam," | ",input$selectPos)) +
+      labs(x=element_blank(), y=input$selectVar, title=paste0("Weekly Summary \n",input$selectVar)) +
+                                                #,": ", paste(input$selectTeam, collapse =',')," | ",input$selectPos)) +
       theme(plot.title = element_text(face='bold'),
             panel.spacing = unit(0,"lines"),
             text = element_text(size=18),
             axis.text.x = element_text(angle = 45, hjust=1)) +
-      scale_y_continuous(limits = c(floor(min(pivotgraph_data[[input$selectVar]])),
-                                    ceiling(max(pivotgraph_data[[input$selectVar]])))) +
-
-      #ylim(floor(min(.data[[input$selectVar]])), ceiling(max(.data[[input$selectVar]]))) +
+      scale_y_continuous(limits = c(floor(min(pivotgraph_data[[inputVar()]])),
+                                    ceiling(max(pivotgraph_data[[inputVar()]])))) +
       
       # scale_x_discrete(breaks = plot_breaks[seq(1, by = case_when(length(plot_breaks) < 22 ~ 2,
       #                                                             length(plot_breaks) < 44 ~ 4,
       #                                                             length(plot_breaks) < 66 ~ 8,
       #                                                             TRUE ~ 16),
       #                                           to = length(plot_breaks))]) +
-      if(input$pivot_trendlines){geom_smooth(aes(x=week_season_num, y = .data[[input$selectVar]]),
+      if(input$pivot_trendlines){geom_smooth(aes(x=week_season_num, y = .data[[inputVar()]]),
                                              method = "loess", na.rm = TRUE, fill = NA)} 
   })
   
@@ -298,7 +378,6 @@ server <- function(input, output, session) {
         width = "100%"
         #,width = 1750
       )
-    
     
   })
   
@@ -375,16 +454,6 @@ server <- function(input, output, session) {
       filter(Name %in% input$selectPlayers2)
   })
   
-  sticky_style <- function(left = TRUE) {
-    style <- list(position = "sticky", background = "#f7f7f8", zIndex = 1)
-    if (left) {
-      style <- c(style, list(left = 0, borderRight = "1px solid #eee"))
-    } else {
-      style <- c(style, list(right = 0, borderLeft = "1px solid #eee"))
-    }
-    style
-  }
-  
   output$table <- renderReactable({
     weeklyEP2_playerfilter() %>% 
       reactable(
@@ -395,9 +464,10 @@ server <- function(input, output, session) {
           #minWidth = 90,
           #headerStyle = list(background = "#f7f7f8")
         ),
-        # columns = list(
-        #   Name = colDef(minWidth = 150)  # overrides the default
-        # ),
+        columns = list(
+          Name = colDef(style = sticky_style(),
+                        headerStyle = sticky_style())
+        ),
         bordered = TRUE,
         highlight = TRUE,
         #searchable = TRUE,
@@ -407,6 +477,36 @@ server <- function(input, output, session) {
         compact = TRUE,
         width = "100%"
       )
+  })
+  
+  inputVar2 <- reactive({str_to_lower(gsub(" ", "_", input$selectVar2, fixed = TRUE))})
+  
+  output$leaguePlot <- renderPlot({
+    asp_ratio <- 1.618
+    #aspect.ratio = 1/asp_ratio
+    
+    season_data %>% 
+      filter(Season != 2020, Team %in% input$selectTeam3) %>% 
+      ggplot(aes(.data[[paste0(inputVar2(),'_x')]], .data[[inputVar2()]], group = Team)) +
+      geom_image(aes(image = team_logo_wikipedia), size = 0.035, by = "width", asp = asp_ratio) +
+      geom_text_repel(aes(label = Season),force = 10) +
+      #geom_point(aes(color=as.factor(Team), size=as.factor(Season))) +
+      geom_path() +
+      geom_abline() +
+      theme_bw() +
+      #coord_fixed(ratio = 1) +
+      theme(
+        # panel.grid.major.y = element_blank(),
+        # axis.text.y = element_blank(),
+        aspect.ratio = 1/asp_ratio,
+        plot.title = element_text(face='bold'),
+        panel.spacing = unit(0,"lines"),
+        text = element_text(size=18)) +
+      labs(x=paste("EXPECTED",input$selectVar2), y=input$selectVar2, title=paste0("Yearly Trends \n",input$selectVar2)) +
+      annotation_custom(textGrob("Underperformed",x=0.95, y=0.1, hjust=1, vjust=0,
+                                 gp=gpar(col="black", fontsize=40, fontface="bold", alpha = 0.15))) +
+      annotation_custom(textGrob("Overperformed",x=0.05, y=0.9, hjust=0, vjust=1,
+                                 gp=gpar(col="black", fontsize=40, fontface="bold", alpha = 0.15)))
     
     
   })
