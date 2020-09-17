@@ -15,17 +15,17 @@ suppressPackageStartupMessages({
   library(shinyWidgets)
   library(DT)
   library(reactable)
+  library(gfonts)
   
   # Joe
-  library(nflfastR)
+  # library(nflfastR)
   library(ggimage)
   library(grid)
   library(ggrepel)
 })
 
 source('fn_ui_desktop.R')
-options(warn=-1)
-
+options(warn=0, dplyr.summarise.inform = FALSE)
 
 # Create Functions --------------------------------------------------------
 
@@ -90,6 +90,7 @@ ui <- dashboardPage(
     menuItem('About',tabName = 'about',icon = 'question-circle')
   ),
   dashboardBody(
+    use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
     tabItems(
       tabItem(tabName = 'weekly',
               titlePanel('Weekly Charts'),
@@ -141,7 +142,7 @@ ui <- dashboardPage(
               box(#title = "Plot",
                   width = 12,
                   fluidRow(width = 12,
-                           plotOutput("pivotGraph", height = "600px"))),
+                           plotOutput("pivotGraph", height = "35em"))),
               box(#title = "Table",
                   width = 12,
                   fluidRow(width = 12,
@@ -152,6 +153,7 @@ ui <- dashboardPage(
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
+                  collapsible = FALSE,
                   fluidRow(
                     column(width = 5,
                            radioGroupButtons("selectCol",
@@ -228,7 +230,7 @@ ui <- dashboardPage(
               box(width = 12,
                   #height = "150%",
                   fluidRow(width = 12,
-                           plotOutput("leaguePlot", height = "800px")))
+                           plotOutput("leaguePlot", height = "50em")))
       ),
       tabItem(tabName='about',
               titlePanel('About - Expected Points'),
@@ -247,6 +249,7 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
   
+  # thematic_on(font = "auto")
   inputVar <- reactive({str_to_lower(gsub(" ", "_", input$selectVar, fixed = TRUE))})
   
   weeklyEP <- reactive({
@@ -310,9 +313,11 @@ server <- function(input, output, session) {
       theme_bw() + 
       labs(x=element_blank(), y=input$selectVar, title=paste0("Weekly Summary \n",input$selectVar)) +
                                                 #,": ", paste(input$selectTeam, collapse =',')," | ",input$selectPos)) +
+      scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) +
       theme(plot.title = element_text(face='bold'),
             panel.spacing = unit(0,"lines"),
             text = element_text(size=18),
+            legend.position = "bottom",
             axis.text.x = element_text(angle = 45, hjust=1)) +
       scale_y_continuous(limits = c(floor(min(pivotgraph_data[[inputVar()]])),
                                     ceiling(max(pivotgraph_data[[inputVar()]])))) +
@@ -351,20 +356,22 @@ server <- function(input, output, session) {
           #header = function(value) gsub("\\,.*", "", value),
           header = function(value) str_extract(value, "\\d*?(?=,)"),
           #cell = function(value) format(value, nsmall = 1),
-          align = "center"
-          #maxWidth = 70,
+          align = "center",
+          minWidth = 50
           #headerStyle = list(background = "#f7f7f8")
         ),
         columnGroups = create_colgroups(input$selectSeason),
         columns = list(
           Name = colDef(header = function(value) value,
                         style = sticky_style(),
+                        minWidth = 100,
                         headerStyle = sticky_style()),
           Team = colDef(header = function(value) value),
           Pos = colDef(header = function(value) value),
           Total = colDef(header = function(value) value),
           Average = colDef(header = function(value) value,
                            style = sticky_style(left = FALSE),
+                           minWidth = 75,
                            headerStyle = sticky_style(left = FALSE))
         ),
         bordered = TRUE,
@@ -512,4 +519,5 @@ server <- function(input, output, session) {
   })
 }
 
+# thematic_shiny(font = "auto")
 shinyApp(ui, server)
