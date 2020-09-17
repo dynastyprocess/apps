@@ -113,7 +113,7 @@ ui <- dashboardPage(
                            pickerInput("selectTeam",
                                        "Select Teams:",
                                        choices = sort(unique(epdata$Team)),
-                                       selected = "SEA",
+                                       selected = NULL,
                                        multiple = TRUE,
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
@@ -257,6 +257,10 @@ ui <- dashboardPage(
 # Server Section ----------------------------------------------------------
 
 server <- function(input, output, session) {
+  
+  random_team <- sample(unique(epdata$Team),1)
+  updatePickerInput(session,"selectTeam",selected = random_team)
+  updatePickerInput(session,"selectTeam2",selected = random_team)
   
   # thematic_on(font = "auto")
   inputVar <- reactive({str_to_lower(gsub(" ", "_", input$selectVar, fixed = TRUE))})
