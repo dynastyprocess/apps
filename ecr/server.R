@@ -11,7 +11,7 @@ library(shinyWidgets)
 library(grid)
 library(shinylogs)
 
-track_usage(storage_mode = store_sqlite(path = "logs/"))
+# track_usage(storage_mode = store_sqlite(path = "logs/"))
 
 x <- read_csv("https://raw.githubusercontent.com/DynastyProcess/data/master/files/db_fpecr.csv") %>%
   filter(ecr_type %in% c('dp','rp'), pos %in% c('QB','RB','WR','TE')) %>%
