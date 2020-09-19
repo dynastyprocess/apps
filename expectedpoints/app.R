@@ -95,6 +95,9 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
+    tags$style(HTML("
+    #selectColBox {overflow:auto;}
+                     ")),
     tabItems(
       tabItem(tabName = 'weekly',
               h1('Weekly Expected Points',style = "padding-left:10px;"),
@@ -162,10 +165,13 @@ ui <- dashboardPage(
                   collapsible = FALSE,
                   fluidRow(
                     column(width = 5,
+                           id = "selectColBox",
                            radioGroupButtons("selectCol",
                                              "Select Columns:",
                                              choices = c("Exp Points","Pass Stats","Rush Stats","Rec Stats","Total Stats","AY Stats"),
                                              selected = "Exp Points",
+                                             # justified = TRUE,
+                                             size = 'sm',
                                              status = "danger"),
                            conditionalPanel(
                              condition = "input.selectCol != 'AY Stats'",
@@ -173,6 +179,7 @@ ui <- dashboardPage(
                                                "Aggregate Data:",
                                                choices = c("Weekly","Weekly Average","Totals"),
                                                selected = "Weekly Average",
+                                               size = 'sm',
                                                status = "danger"))),
                     column(width = 4,
                            pickerInput("selectTeam2",
@@ -261,8 +268,7 @@ server <- function(input, output, session) {
   random_team <- sample(unique(epdata$Team),1)
   updatePickerInput(session,"selectTeam",selected = random_team)
   updatePickerInput(session,"selectTeam2",selected = random_team)
-  
-  # thematic_on(font = "auto")
+
   inputVar <- reactive({str_to_lower(gsub(" ", "_", input$selectVar, fixed = TRUE))})
   
   weeklyEP <- reactive({
@@ -384,7 +390,7 @@ server <- function(input, output, session) {
           Total = colDef(header = function(value) value),
           Average = colDef(header = function(value) value,
                            style = sticky_style(left = FALSE),
-                           minWidth = 75,
+                           minWidth = 85,
                            headerStyle = sticky_style(left = FALSE))
         ),
         bordered = TRUE,
