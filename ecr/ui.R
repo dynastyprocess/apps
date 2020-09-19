@@ -10,10 +10,16 @@ library(tidyr)
 library(shinyWidgets)
 library(grid)
 
-x <- read.csv(curl("https://raw.githubusercontent.com/tanho63/dynastyprocess/master/files/fp_dynastyvsredraft.csv"),
-              encoding = "unknown")
-x <- x[order(x$date, x$dynpECR),]
-#x <- x[order(x$name, x$date),]
+x <- read_csv("https://raw.githubusercontent.com/DynastyProcess/data/master/files/db_fpecr.csv") %>%
+  filter(ecr_type %in% c('dp','rp'), pos %in% c('QB','RB','WR','TE')) %>%
+  select(player_name, fantasypros_id, pos, team, scrape_date, ecr, ecr_type) %>%
+  pivot_wider(names_from = ecr_type,
+              values_from = ecr,
+              values_fn = min) %>%
+  ungroup() %>%
+  transmute(name = as.factor(player_name), pos = as.factor(pos), tm = as.factor(team), date = as.factor(scrape_date), dynpECR = dp, rdpECR = rp) %>%
+  arrange(date, dynpECR) %>%
+  as.data.frame()
 
 dates <- tail(unique(x$date),3)
 
