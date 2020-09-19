@@ -4,28 +4,31 @@ suppressPackageStartupMessages({
   library(DBI)
   library(RSQLite)
   library(here)
+  
   # Data manipulation
   library(tidyverse)
   library(lubridate)
   library(glue)
   library(magrittr)
+  
+  # Plotting
+  library(ggimage)
+  library(grid)
+  library(ggrepel)
+  library(nflfastR)
+  
   # Shiny
   library(shiny)
   library(bs4Dash)
   library(shinyWidgets)
-  library(DT)
   library(reactable)
+  library(gfonts)
+  # library(DT)
   
-  # Joe
-  library(nflfastR)
-  library(ggimage)
-  library(grid)
-  library(ggrepel)
 })
 
 source('fn_ui_desktop.R')
-options(warn=-1)
-
+options(warn=0, dplyr.summarise.inform = FALSE)
 
 # Create Functions --------------------------------------------------------
 
@@ -81,18 +84,20 @@ vars2 <- season_data %>% select(contains("team"), -pass_att_team, -pass_ay_team,
 # UI section --------------------------------------------------------------
 ui <- dashboardPage(
   sidebar_collapsed = TRUE,
+  title = "Expected Points - DynastyProcess.com",
   navbar = ui_header("Expected Points App"),
   sidebar = ui_sidebar(
-    menuItem('Weekly Chart',tabName = 'weekly',icon = 'chart-line'),
+    menuItem('Weekly EP',tabName = 'weekly',icon = 'chart-line'),
     menuItem('Data Tables',tabName = 'data', icon = 'table'),
     #menuItem('Trends',tabName = 'trends',icon = 'send'),
-    menuItem('League Trends',tabName = 'league',icon = 'trophy'),
+    menuItem('Team Level Trends',tabName = 'league',icon = 'trophy'),
     menuItem('About',tabName = 'about',icon = 'question-circle')
   ),
   dashboardBody(
+    use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
     tabItems(
       tabItem(tabName = 'weekly',
-              titlePanel('Weekly Charts'),
+              h1('Weekly Expected Points',style = "padding-left:10px;"),
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
@@ -108,7 +113,7 @@ ui <- dashboardPage(
                            pickerInput("selectTeam",
                                        "Select Teams:",
                                        choices = sort(unique(epdata$Team)),
-                                       selected = "SEA",
+                                       selected = NULL,
                                        multiple = TRUE,
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
@@ -139,19 +144,22 @@ ui <- dashboardPage(
                   )
               ),
               box(#title = "Plot",
-                  width = 12,
-                  fluidRow(width = 12,
-                           plotOutput("pivotGraph", height = "600px"))),
+                maximizable = TRUE,
+                width = 12,
+                fluidRow(width = 12,
+                         plotOutput("pivotGraph", height = "35em"))),
               box(#title = "Table",
                   width = 12,
                   fluidRow(width = 12,
                            reactableOutput("teamPivot", width = "100%")))
       ),
       tabItem(tabName = 'data',
-              titlePanel("Data Tables"),
+              # titlePanel("Data Tables"),
+              h1("Data Tables", style = "padding-left:10px;"),
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
+                  collapsible = FALSE,
                   fluidRow(
                     column(width = 5,
                            radioGroupButtons("selectCol",
@@ -193,17 +201,18 @@ ui <- dashboardPage(
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE),
-                                       multiple = TRUE)),
-                    box(#title = "Table",
+                                       multiple = TRUE)))),
+                    box(title = "Data",
+                        status = "danger",
+                        maximizable = TRUE,
                         width = 12,
-                        fluidRow(width = 12,
-                                 reactableOutput("table", width = "100%")))
-                  )
-              )
+                        fluidRow(
+                          width = 12,
+                          reactableOutput("table", width = "100%")))
               
       ),
       tabItem(tabName = 'league',
-              titlePanel("League Trends"),
+              h1("Team Level Trends", style = "padding-left:10px;"),
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
@@ -226,12 +235,14 @@ ui <- dashboardPage(
                   )
               ),
               box(width = 12,
+                  status = "danger",
+                  title = "Plot",
                   #height = "150%",
                   fluidRow(width = 12,
-                           plotOutput("leaguePlot", height = "800px")))
+                           plotOutput("leaguePlot", height = "50em")))
       ),
       tabItem(tabName='about',
-              titlePanel('About - Expected Points'),
+              h1('About - Expected Points', style = "padding-left:10px"),
               box(status = "danger",
                   width = 12,
                   fluidRow(column(12,
@@ -247,6 +258,11 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
   
+  random_team <- sample(unique(epdata$Team),1)
+  updatePickerInput(session,"selectTeam",selected = random_team)
+  updatePickerInput(session,"selectTeam2",selected = random_team)
+  
+  # thematic_on(font = "auto")
   inputVar <- reactive({str_to_lower(gsub(" ", "_", input$selectVar, fixed = TRUE))})
   
   weeklyEP <- reactive({
@@ -310,9 +326,11 @@ server <- function(input, output, session) {
       theme_bw() + 
       labs(x=element_blank(), y=input$selectVar, title=paste0("Weekly Summary \n",input$selectVar)) +
                                                 #,": ", paste(input$selectTeam, collapse =',')," | ",input$selectPos)) +
+      scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) +
       theme(plot.title = element_text(face='bold'),
             panel.spacing = unit(0,"lines"),
             text = element_text(size=18),
+            legend.position = "bottom",
             axis.text.x = element_text(angle = 45, hjust=1)) +
       scale_y_continuous(limits = c(floor(min(pivotgraph_data[[inputVar()]])),
                                     ceiling(max(pivotgraph_data[[inputVar()]])))) +
@@ -351,20 +369,22 @@ server <- function(input, output, session) {
           #header = function(value) gsub("\\,.*", "", value),
           header = function(value) str_extract(value, "\\d*?(?=,)"),
           #cell = function(value) format(value, nsmall = 1),
-          align = "center"
-          #maxWidth = 70,
+          align = "center",
+          minWidth = 50
           #headerStyle = list(background = "#f7f7f8")
         ),
         columnGroups = create_colgroups(input$selectSeason),
         columns = list(
           Name = colDef(header = function(value) value,
                         style = sticky_style(),
+                        minWidth = 100,
                         headerStyle = sticky_style()),
           Team = colDef(header = function(value) value),
           Pos = colDef(header = function(value) value),
           Total = colDef(header = function(value) value),
           Average = colDef(header = function(value) value,
                            style = sticky_style(left = FALSE),
+                           minWidth = 75,
                            headerStyle = sticky_style(left = FALSE))
         ),
         bordered = TRUE,
@@ -461,11 +481,12 @@ server <- function(input, output, session) {
           header = function(value) str_to_upper(gsub("_", " ", value, fixed = TRUE)),
           cell = function(value) format(value, nsmall = 1),
           align = "center",
-          #minWidth = 90,
+          minWidth = 80,
           #headerStyle = list(background = "#f7f7f8")
         ),
         columns = list(
           Name = colDef(style = sticky_style(),
+                        minWidth = 100,
                         headerStyle = sticky_style())
         ),
         bordered = TRUE,
@@ -512,4 +533,5 @@ server <- function(input, output, session) {
   })
 }
 
+# thematic_shiny(font = "auto")
 shinyApp(ui, server)
