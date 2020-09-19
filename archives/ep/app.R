@@ -178,7 +178,7 @@ ui <- dashboardPage(
 
 server <- shinyServer(function(input, output, session) {
   
-  track_usage(storage_mode = store_sqlite(path = "logs/"))
+  #track_usage(storage_mode = store_sqlite(path = "logs/"))
   
   allCols <- reactive({
     df2019 %>%
