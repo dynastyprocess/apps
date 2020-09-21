@@ -137,7 +137,6 @@ ui <- dashboardPage(
                            pickerInput("selectPlayers",
                                        "Select Players:",
                                        choices = sort(unique(epdata$Name)),
-                                       #selected = c("Tyler Lockett", "DK Metcalf"),
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE),
@@ -146,18 +145,17 @@ ui <- dashboardPage(
                     
                   )
               ),
-              box(#title = "Plot",
+              box(
                 maximizable = TRUE,
                 width = 12,
                 fluidRow(width = 12,
                          plotOutput("pivotGraph", height = "35em"))),
-              box(#title = "Table",
+              box(
                   width = 12,
                   fluidRow(width = 12,
                            reactableOutput("teamPivot", width = "100%")))
       ),
       tabItem(tabName = 'data',
-              # titlePanel("Data Tables"),
               h1("Data Tables", style = "padding-left:10px;"),
               box(title = "Inputs",
                   status = "danger",
@@ -198,9 +196,12 @@ ui <- dashboardPage(
                                        options = list(`actions-box` = TRUE))),
                     column(width = 3,
                            pickerInput("selectSeason2",
-                                       "Select Seasons:",
-                                       choices = sort(unique(epdata$Season)),
-                                       selected = "2020",
+                                       "Select Weeks:",
+                                       choices = epdata %>% arrange(-Season) %>% select(week_season) %>% distinct() %>% pull(),
+                                       options = list(`actions-box` = TRUE,
+                                                      `selected-text-format`= "count > 1",
+                                                      `live-search` = TRUE),                                       
+                                       selected = epdata %>% filter(Season == "2020") %>% select(week_season) %>% distinct() %>% pull(),
                                        multiple = TRUE),
                            pickerInput("selectPlayers2",
                                        "Select Players:",
@@ -427,7 +428,7 @@ server <- function(input, output, session) {
     epdata %>%
       filter((Team %in% input$selectTeam2),
              (Pos %in% input$selectPos2),
-             Season %in% input$selectSeason2) %>%
+              week_season %in% input$selectSeason2) %>%
       {if (input$selectCol == "AY Stats")
         select(., Season, Week, Name, Team, Pos, !!!field_names)
         else select(., Season, Week, Name, Team, Pos, sort(!!!field_names),
