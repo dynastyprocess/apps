@@ -509,8 +509,8 @@ server <- function(input, output, session) {
     season_data %>% 
       filter(Season != 2020, Team %in% input$selectTeam3) %>% 
       ggplot(aes(.data[[paste0(inputVar2(),'_x')]], .data[[inputVar2()]], group = Team)) +
-      geom_image(aes(image = team_logo_wikipedia), size = 0.035, by = "width", asp = asp_ratio) +
-      geom_text_repel(aes(label = Season),force = 10) +
+      geom_image(aes(image = team_logo_wikipedia), size = 0.05, by = "width", asp = asp_ratio) +
+      geom_text_repel(aes(label = Season),force = 12, size=6) +
       #geom_point(aes(color=as.factor(Team), size=as.factor(Season))) +
       geom_path() +
       geom_abline() +
@@ -522,7 +522,7 @@ server <- function(input, output, session) {
         aspect.ratio = 1/asp_ratio,
         plot.title = element_text(face='bold'),
         panel.spacing = unit(0,"lines"),
-        text = element_text(size=18)) +
+        text = element_text(size=20)) +
       labs(x=paste("EXPECTED",input$selectVar2), y=input$selectVar2, title=paste0("Yearly Trends \n",input$selectVar2)) +
       annotation_custom(textGrob("Underperformed",x=0.95, y=0.1, hjust=1, vjust=0,
                                  gp=gpar(col="black", fontsize=40, fontface="bold", alpha = 0.15))) +
