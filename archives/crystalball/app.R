@@ -196,7 +196,7 @@ ui <- dashboardPage(skin="blue", title="DynastyProcess Apps: Crystal Ball", # da
 
 server <- function(input, output, session) {
 
-  track_usage(storage_mode = store_sqlite(path = "logs/"))
+  # track_usage(storage_mode = store_sqlite(path = "logs/"))
 
   # functions for all tabs ----
   shinyInput <- function(FUN, len, id, ...) {
