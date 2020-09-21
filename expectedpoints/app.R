@@ -410,12 +410,34 @@ server <- function(input, output, session) {
   
   weeklyEP2 <- reactive({
     field_names <- switch(input$selectCol,
-                          "Exp Points" = rlang::exprs(ends_with("x")),
-                          "Pass Stats" = rlang::exprs(starts_with("pass")),
-                          "Rush Stats" = rlang::exprs(starts_with("rush")),
-                          "Rec Stats" = rlang::exprs(starts_with("rec")),
-                          "Total Stats" = rlang::exprs(starts_with("total")),
-                          "AY Stats" = rlang::exprs(starts_with("rec"), starts_with("total"), starts_with("pass")))
+                          # "Exp Points" = rlang::exprs(ends_with("x")),
+                          # "Pass Stats" = rlang::exprs(starts_with("pass")),
+                          # "Rush Stats" = rlang::exprs(starts_with("rush")),
+                          # "Rec Stats" = rlang::exprs(starts_with("rec")),
+                          # "Total Stats" = rlang::exprs(starts_with("total")),
+                          # "AY Stats" = rlang::exprs(starts_with("rec"), starts_with("total"), starts_with("pass"))
+                          "Exp Points" = c("total_fp_x", "total_yd_x", "total_td_x",
+                                           "pass_fp_x","pass_comp_x","pass_yd_x","pass_td_x",
+                                           "rec_comp_x","rec_fp_x","rec_yd_x","rec_td_x",
+                                           "rush_fp_x","rush_yd_x","rush_td_x"),
+                          "Pass Stats" = c("pass_fp","pass_fp_x","pass_fp_diff",
+                                           "pass_att","pass_comp","pass_comp_x","pass_comp_diff",
+                                           "pass_ay","pass_yd","pass_yd_x","pass_yd_diff",
+                                           "pass_td","pass_td_x","pass_td_diff"),
+                          "Rush Stats" = c("rush_fp","rush_fp_x","rush_fp_diff",
+                                           "rush_att","rush_yd","rush_yd_x","rush_yd_diff",
+                                           "rush_td","rush_td_x","rush_td_diff"),
+                          "Rec Stats" = c("rec_fp","rec_fp_x","rec_fp_diff",
+                                          "rec_tar","rec_comp","rec_comp_x","rec_comp_diff",
+                                          "rec_ay","rec_yd","rec_yd_x","rec_yd_diff",
+                                          "rec_td","rec_td_x","rec_td_diff"),
+                          "Total Stats" = c("total_fp","total_fp_x","total_fp_diff",
+                                            "total_yd","total_yd_x","total_yd_diff",
+                                            "total_td","total_td_x","total_td_diff"),
+                          "AY Stats" = c("rec_comp","rec_tar","rec_yd","rec_ay","rec_td",
+                                         "pass_ay_team","pass_att_team",
+                                         "total_fp_x","total_fp_team_x",
+                                         "total_fp","total_fp_team"))
     
     arrange_field <- switch(input$selectCol,
                           "Exp Points" = rlang::exprs(total_fp_x),
@@ -428,10 +450,10 @@ server <- function(input, output, session) {
     epdata %>%
       filter((Team %in% input$selectTeam2),
              (Pos %in% input$selectPos2),
-              week_season %in% input$selectSeason2) %>%
+             week_season %in% input$selectSeason2) %>%
       {if (input$selectCol == "AY Stats")
-        select(., Season, Week, Name, Team, Pos, !!!field_names)
-        else select(., Season, Week, Name, Team, Pos, sort(!!!field_names),
+        select(., Name, Season, Week, Team, Pos, field_names)
+        else select(., Name, Season, Week, Team, Pos, sort(field_names),
                     -contains("_team"), -contains("proxy"))} %>%
       {if (input$selectCol == "AY Stats")
         group_by(., Name, Team, Pos) %>% 
@@ -452,11 +474,11 @@ server <- function(input, output, session) {
         else if (input$weeklyRadio == "Weekly Average")
           group_by(., Name, Team, Pos) %>%
           summarise(games = n(),
-                    across(!!!field_names, ~mean(.x, na.rm = TRUE))) 
+                    across(field_names, ~mean(.x, na.rm = TRUE))) 
         else if (input$weeklyRadio == "Totals")
           group_by(., Name, Team, Pos) %>%
           summarise(games = n(),
-                    across(!!!field_names, ~sum(.x, na.rm = TRUE)))
+                    across(field_names, ~sum(.x, na.rm = TRUE)))
         else .} %>% 
       ungroup() %>% 
       {if (input$selectCol == "AY Stats")
@@ -482,20 +504,64 @@ server <- function(input, output, session) {
   })
   
   output$table <- renderReactable({
+    
+    colGroupSwitch <- switch(input$selectCol,
+                          "Exp Points" = list(
+                            colGroup(name = "Total Expected", columns = c("total_fp_x", "total_yd_x", "total_td_x")),
+                            colGroup(name = "Expected Passing", columns = c("pass_fp_x","pass_comp_x","pass_yd_x","pass_td_x")),
+                            colGroup(name = "Expected Receiving", columns = c("rec_comp_x","rec_fp_x","rec_yd_x","rec_td_x")),
+                            colGroup(name = "Expected Rushing", columns = c("rush_fp_x","rush_yd_x","rush_td_x"))),
+                          "Pass Stats" = list(
+                            colGroup(name = "Fantasy Points", columns = c("pass_fp","pass_fp_x","pass_fp_diff")),
+                            colGroup(name = "Completions", columns = c("pass_comp","pass_comp_x","pass_comp_diff")),
+                            colGroup(name = "Pass Yards", columns = c("pass_ay","pass_yd","pass_yd_x","pass_yd_diff")),
+                            colGroup(name = "Touchdowns", columns = c("pass_td","pass_td_x","pass_td_diff"))),
+                          "Rush Stats" = list(
+                            colGroup(name = "Fantasy Points", columns = c("rush_fp","rush_fp_x","rush_fp_diff")),
+                            colGroup(name = "Rush Yards", columns = c("rush_yd","rush_yd_x","rush_yd_diff")),
+                            colGroup(name = "Touchdowns", columns = c("rush_td","rush_td_x","rush_td_diff"))),
+                          "Rec Stats" = list(
+                            colGroup(name = "Fantasy Points", columns = c("rec_fp","rec_fp_x","rec_fp_diff")),
+                            colGroup(name = "Catches", c("rec_comp","rec_comp_x","rec_comp_diff")),
+                            colGroup(name = "Rec Yards", c("rec_ay","rec_yd","rec_yd_x","rec_yd_diff")),
+                            colGroup(name = "Touchdowns", c("rec_td","rec_td_x","rec_td_diff"))),
+                          "Total Stats" = list(
+                            colGroup(name = "Fantasy Points", columns = c("total_fp","total_fp_x","total_fp_diff")),
+                            colGroup(name = "Yards", columns = c("total_yd","total_yd_x","total_yd_diff")),
+                            colGroup(name = "Touchdowns", columns = c("total_td","total_td_x","total_td_diff")))
+    )
+    
     weeklyEP2_playerfilter() %>% 
       reactable(
         defaultColDef = colDef(
-          header = function(value) str_to_upper(gsub("_", " ", value, fixed = TRUE)),
+          #header = function(value) str_to_upper(gsub("_", " ", value, fixed = TRUE)),
+          header = function(value) case_when(input$selectCol == "Exp Points" & str_detect(value, "fp") ~ "FPs",
+                                             input$selectCol == "Exp Points" & str_detect(value, "yd") ~ "Yards",
+                                             input$selectCol == "Exp Points" & str_detect(value, "td") ~ "TDs",
+                                             input$selectCol == "Exp Points" & str_detect(value, "comp") ~ "Comp",
+                                             input$selectCol != "AY Stats" & str_detect(value, "_x") ~ "Exp",
+                                             input$selectCol != "AY Stats" & str_detect(value, "_diff") ~ "Diff",
+                                             input$selectCol != "AY Stats" & str_detect(value, "ay") ~ "AYs",
+                                             input$selectCol != "AY Stats" & str_detect(value, "att") ~ "Attempts",
+                                             input$selectCol != "AY Stats" & str_detect(value, "tar") ~ "Tar",
+                                             input$selectCol != "AY Stats" & !(value %in% c("Name","Games","Week","Team","Pos","Season")) ~ "Actual",
+                                             input$selectCol == "AY Stats" ~ str_to_upper(gsub("_", " ", value, fixed = TRUE)),                            
+                                             TRUE ~ value),
           cell = function(value) format(value, nsmall = 1),
           align = "center",
-          minWidth = 80,
+          minWidth = 81,
           #headerStyle = list(background = "#f7f7f8")
         ),
         columns = list(
           Name = colDef(style = sticky_style(),
                         minWidth = 100,
-                        headerStyle = sticky_style())
+                        headerStyle = sticky_style()),
+          games = colDef(name = "Games", cell = function(value) format(value, nsmall = 0)),
+          Season = colDef(cell = function(value) format(value, nsmall = 0)),
+          Week = colDef(cell = function(value) format(value, nsmall = 0))
+          
         ),
+        columnGroups = colGroupSwitch,
         bordered = TRUE,
         highlight = TRUE,
         #searchable = TRUE,
@@ -519,7 +585,7 @@ server <- function(input, output, session) {
       geom_image(aes(image = team_logo_wikipedia), size = 0.05, by = "width", asp = asp_ratio) +
       geom_text_repel(aes(label = Season),force = 12, size=6) +
       #geom_point(aes(color=as.factor(Team), size=as.factor(Season))) +
-      geom_path() +
+      #geom_path() +
       geom_abline() +
       theme_bw() +
       #coord_fixed(ratio = 1) +
