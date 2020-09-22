@@ -16,7 +16,7 @@ Our models use many of the same components, but with a few new innovations. Here
 
 Finally, we use our predictions of the individual components of fantasy scoring (rush/pass/receiving yards, TDs, receptions) to predict the expected fantasy points on each play. We've tried to make as much of the data accessible for you to explore across the three different tabs, but let us know on Twitter if you have any questions on our methodology or data. 
 
-### Thank yous
+### Thank-yous
 
 This wouldn't be possible without the fantastic resource that is nflfastR - both for training the model as well as allowing us extensive access to the 2020 NFL season. Thanks to Julia Silge (https://twitter.com/juliasilge) for her informative tidymodel examples and Tom Mock (https://twitter.com/thomas_mock) for his useful reactable and nflfastR plotting resources.
 
