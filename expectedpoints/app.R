@@ -57,7 +57,7 @@ colClean <- function(x) {str_to_upper(gsub("_", " ", colnames(x), fixed = TRUE))
 # Import Data -------------------------------------------------------------
 
 setwd(here::here())
-epdata <- read_parquet("ep_1999_2019.pdata") %>% filter(Season >= 2017)
+epdata <- read_parquet("ep_1999_2019.pdata")
 vars <- epdata %>% select(contains("pass"), contains("rush"), contains("rec"), contains("total"), -contains("team"), -contains("proxy")) %>%
   colClean() %>% sort()
 week_seasons <- epdata %>% arrange(Season, Week) %>% distinct(week_season) %>% as_vector()
@@ -225,20 +225,37 @@ ui <- dashboardPage(
                   status = "danger",
                   width = 12,
                   fluidRow(
-                    column(width=4,
+                    column(width=3,
                            selectizeInput("selectVar2",
                                           "Select Variable:",
                                           choices = vars2,
-                                          selected = "PASS TD TEAM")),
-                    column(width=4,pickerInput("selectTeam3",
-                                               "Select Teams:",
-                                               choices = sort(unique(season_data$Team)),
-                                               options = list(`actions-box` = TRUE,
-                                                              `selected-text-format`= "count > 1",
-                                                              `live-search` = TRUE,
-                                                              `max-options` = 5),
-                                               selected = c("SEA","GB","KC","BAL"),
-                                               multiple = TRUE))
+                                          selected = "PASS TD TEAM"),
+                           conditionalPanel(
+                             condition = "input.rate_stats",
+                             selectizeInput("denomStat",
+                                            "Divided by:",
+                                            choices = c("GAMES","RUSH YD TEAM","RUSH ATT TEAM",
+                                                        "PASS YD TEAM","PASS ATT TEAM","PASS COMP TEAM",
+                                                        "REC YD TEAM","TOTAL YD TEAM"),
+                                            selected = "PASS YD TEAM"))),
+                    column(width=1,
+                           checkboxInput("rate_stats", label = "Rate Stats", value = FALSE)),
+                    column(width=4,
+                           pickerInput("selectTeam3",
+                                       "Select Teams:",
+                                       choices = sort(unique(season_data$Team)),
+                                       options = list(`actions-box` = TRUE,
+                                                      `selected-text-format`= "count > 1",
+                                                      `live-search` = TRUE,
+                                                      `max-options` = 5),
+                                       selected = c("SEA","GB","KC","BAL"),
+                                       multiple = TRUE)),
+                    column(width = 4,
+                           pickerInput("selectSeason3",
+                                       "Select Seasons:",
+                                       choices = rev(sort(unique(season_data$Season))),
+                                       selected = c("2017","2018","2019"),
+                                       multiple = TRUE))
                     
                   )
               ),
@@ -576,13 +593,19 @@ server <- function(input, output, session) {
   
   inputVar2 <- reactive({str_to_lower(gsub(" ", "_", input$selectVar2, fixed = TRUE))})
   
+  inputDenom <- reactive({str_to_lower(gsub(" ", "_", input$denomStat, fixed = TRUE))})
+  
   output$leaguePlot <- renderPlot({
     asp_ratio <- 1.618
     #aspect.ratio = 1/asp_ratio
     
     season_data %>% 
-      filter(Season != 2020, Team %in% input$selectTeam3) %>% 
-      ggplot(aes(.data[[paste0(inputVar2(),'_x')]], .data[[inputVar2()]], group = Team)) +
+      filter(Season %in% input$selectSeason3,
+             Team %in% input$selectTeam3) %>% 
+      {if (input$rate_stats) ggplot(., aes(.data[[paste0(inputVar2(),'_x')]] / .data[[inputDenom()]],
+                                          .data[[inputVar2()]]  / .data[[inputDenom()]],
+                                          group = Team))
+        else ggplot(., aes(.data[[paste0(inputVar2(),'_x')]], .data[[inputVar2()]], group = Team)) } +
       geom_image(aes(image = team_logo_wikipedia), size = 0.05, by = "width", asp = asp_ratio) +
       geom_text_repel(aes(label = Season),force = 15, size=6, point.padding = 1.5) +
       #geom_point(aes(color=as.factor(Team), size=as.factor(Season))) +
@@ -597,7 +620,10 @@ server <- function(input, output, session) {
         plot.title = element_text(face='bold'),
         panel.spacing = unit(0,"lines"),
         text = element_text(size=20)) +
-      labs(x=paste("EXPECTED",input$selectVar2), y=input$selectVar2, title=paste0("Yearly Trends \n",input$selectVar2)) +
+      {if (input$rate_stats) labs(x=paste("EXPECTED",input$selectVar2,'/',input$denomStat),
+                                  y=paste(input$selectVar2,'/',input$denomStat),
+                                  title=paste0("Yearly Trends \n",paste(input$selectVar2,'/',input$denomStat)))
+        else labs(x=paste("EXPECTED",input$selectVar2), y=input$selectVar2, title=paste0("Yearly Trends \n",input$selectVar2)) } +
       annotation_custom(textGrob("Underperformed",x=0.95, y=0.1, hjust=1, vjust=0,
                                  gp=gpar(col="black", fontsize=40, fontface="bold", alpha = 0.15))) +
       annotation_custom(textGrob("Overperformed",x=0.05, y=0.9, hjust=0, vjust=1,

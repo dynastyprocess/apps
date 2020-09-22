@@ -256,6 +256,7 @@ all_games <-
     rush_fp_team = sum(rush_fp, na.rm = TRUE),
     rush_yd_team = sum(rush_yd, na.rm = TRUE),
     rush_td_team = sum(rush_td, na.rm = TRUE),
+    rush_att_team = sum(rush_att, na.rm = TRUE),
     rush_fp_team_x = sum(rush_fp_x, na.rm = TRUE),
     rush_yd_team_x = sum(rush_yd_x, na.rm = TRUE),
     rush_td_team_x = sum(rush_td_x, na.rm = TRUE),
