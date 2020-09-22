@@ -197,7 +197,7 @@ ui <- dashboardPage(
                     column(width = 3,
                            pickerInput("selectSeason2",
                                        "Select Weeks:",
-                                       choices = epdata %>% arrange(-Season) %>% select(week_season) %>% distinct() %>% pull(),
+                                       choices = epdata %>% arrange(-Season, -Week) %>% select(week_season) %>% distinct() %>% pull(),
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE),                                       
@@ -314,13 +314,16 @@ server <- function(input, output, session) {
   })
   
   output$pivotGraph <- renderPlot({
+
+    req(input$selectTeam)
+    
     pivotgraph_data <- weeklyEP_playerfilter() %>%
       group_by(gsis_id) %>%
       mutate(player_weeks = n()) %>%
       ungroup() %>%
       group_by(Season, Week, week_season) %>%
       mutate(week_season_num = cur_group_id(),
-             week_season_num = case_when(player_weeks > 2 ~ week_season_num,
+             week_season_num_smooth = case_when(player_weeks > 2 ~ week_season_num,
                                          TRUE ~ 0L)) %>%
       ungroup() %>%
       mutate(week_season = forcats::fct_reorder(week_season, week_season_num))
@@ -347,7 +350,7 @@ server <- function(input, output, session) {
       #                                                             length(plot_breaks) < 66 ~ 8,
       #                                                             TRUE ~ 16),
       #                                           to = length(plot_breaks))]) +
-      if(input$pivot_trendlines){geom_smooth(aes(x=week_season_num, y = .data[[inputVar()]]),
+      if(input$pivot_trendlines){geom_smooth(aes(x=week_season_num_smooth, y = .data[[inputVar()]]),
                                              method = "loess", na.rm = TRUE, fill = NA)} 
   })
   
@@ -368,8 +371,6 @@ server <- function(input, output, session) {
   }
   
   output$teamPivot <- renderReactable({
-    #print(class(create_colgroups(input$selectSeason)[1]))
-    
     weekPivot() %>% 
       reactable(
         defaultColDef = colDef(
@@ -583,7 +584,7 @@ server <- function(input, output, session) {
       filter(Season != 2020, Team %in% input$selectTeam3) %>% 
       ggplot(aes(.data[[paste0(inputVar2(),'_x')]], .data[[inputVar2()]], group = Team)) +
       geom_image(aes(image = team_logo_wikipedia), size = 0.05, by = "width", asp = asp_ratio) +
-      geom_text_repel(aes(label = Season),force = 12, size=6) +
+      geom_text_repel(aes(label = Season),force = 15, size=6, point.padding = 1.5) +
       #geom_point(aes(color=as.factor(Team), size=as.factor(Season))) +
       #geom_path() +
       geom_abline() +
