@@ -1,13 +1,9 @@
-# EP UI Functions
-#
-# Because sheesh those UI elements are verbose.
+# EP Functions
 
 library(bs4Dash)
 library(shiny)
 
-.drop_nulls <- function(x) {
-  x[!vapply(x, is.null, FUN.VALUE = logical(1))]
-}
+#### UI FUNCTIONS ####
 
 ui_header <- function(title, ...) {
   bs4Dash::dashboardHeader(
@@ -41,7 +37,7 @@ external_menuItem <- function(text = NULL, href = NULL, icon = NULL){
                  class = "nav-link", href = href),class = "nav-item")
 }
 
-header_box <- function(){
+box_about <- function(){
 
   box(
     width = 12,
@@ -52,7 +48,7 @@ header_box <- function(){
 
 }
 
-league_select <- function(){
+box_leagueselect <- function(){
   box(
     width = 12,
     collapsible = TRUE,
@@ -60,27 +56,26 @@ league_select <- function(){
     title = "Select League",
     fluidRow(
       column(
-        width = 6,
+        width = 4,
         radioGroupButtons(
           inputId = "platform",
-          # label = "Platform",
-          # direction = "vertical",
           choices = c("MFL","Sleeper","ESPN"),
           selected = "MFL",
           checkIcon = list("yes" = icon("check")),
           status = "danger",
           justified = TRUE),
-        uiOutput('league_authbox'),
+        uiOutput('league_auth'),
         ),
       column(
-        width = 6,
+        width = 8,
+        id = "column_team_select",
         uiOutput('team_select')
         )
     )
   )
 }
 
-league_authbox.mfl <- function(){
+league_auth.mfl <- function(){
   tagList(
     textInput(
       'user_name',
@@ -96,7 +91,7 @@ league_authbox.mfl <- function(){
   )
 }
 
-league_authbox.sleeper <- function(){
+league_auth.sleeper <- function(){
 
   tagList(
     textInput(
@@ -106,10 +101,9 @@ league_authbox.sleeper <- function(){
       placeholder = "Username"),
     actionButton("load_user","Load My Leagues",class = "btn-success")
   )
-
 }
 
-league_authbox.espn <- function(){
+league_auth.espn <- function(){
 
   tagList(
     textInput(
@@ -119,7 +113,6 @@ league_authbox.espn <- function(){
       placeholder = "League ID"),
     actionButton("load_league","Load My Leagues",class = "btn-success")
   )
-
 }
 
 user_leagues.ffscrapr <- function(user_obj){
@@ -135,8 +128,13 @@ user_leagues.ffscrapr <- function(user_obj){
 
   ff_userleagues(conn_user) %>%
     select(league_id,league_name,franchise_name) %>%
-    mutate(input_id = paste0("leagueid_",league_id),
-           select = map_chr(input_id,~actionButton(.x,"Select") %>% as.character))
+    mutate(
+      select = map_chr(league_id,
+                       ~actionButton(.x,
+                                     "Select",
+                                     class = "btn-primary",
+                                     onclick='Shiny.onInputChange(\"league_select\",  this.id)') %>%
+                         as.character))
 }
 
 team_select.ffscrapr <- function(user_leagues){
@@ -144,9 +142,13 @@ team_select.ffscrapr <- function(user_leagues){
     select(-contains("_id")) %>%
     reactable(
       defaultColDef = colDef(
+        # minWidth = 150,
         header = function(value) make_clean_names(value,"upper_camel",abbreviations = "ID")),
       columns = list(
-        select = colDef(name = "Select",html = TRUE)
+        # franchise_name = colDef(minWidth = 150),
+        select = colDef(name = "Select",
+                        html = TRUE,
+                        minWidth = 50)
       ),
       outlined = TRUE,
       striped = TRUE
@@ -158,3 +160,29 @@ team_select.ffscrapr <- function(user_leagues){
 team_select.espn <- function(){
   includeMarkdown('espn_note.md')
 }
+
+load_data.ffscrapr <- function(user_obj){
+  conn <<- ff_connect(
+    platform = user_obj$platform,
+    season = user_obj$season,
+    league_id = user_obj$league_id,
+    user_name = user_obj$user_name,
+    password = user_obj$password,
+    rate_limit_number = 2,
+    rate_limit_seconds = 3
+  )
+
+  schedule <- ff_schedule(conn)
+  standings <- ff_standings(conn)
+
+}
+
+load_schedule.sleeper <- function(){}
+
+load_schedule.espn <- function(){}
+
+load_standings.ffscrapr <- function(){}
+
+load_standings.sleeper <- function(){}
+
+load_standings.espn <- function(){}
