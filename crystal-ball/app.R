@@ -30,8 +30,7 @@ suppressPackageStartupMessages({
   library(bs4Dash)
   library(shinyWidgets)
   library(reactable)
-  library(gfonts)
-  # library(DT)
+  library(waiter)
 })
 
 source("fn_ui.R")
@@ -46,14 +45,16 @@ ui <- dashboardPage(
     external_menuItem("More by DynastyProcess", "https://dynastyprocess.com", icon = "quidditch")
   ),
   body = dashboardBody(
-    use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
+    includeCSS('dp.css'),
+    use_waiter(),
     tabItems(
       tabItem(
         tabName = "crystalball",
-        header_box(),
-        league_select(),
+        box_about(),
+        box_leagueselect(),
         uiOutput("season_projections"),
-        uiOutput("weekly_schedule")
+        uiOutput("weekly_schedule"),
+        actionButton('debug','debug')
         )
     )
   )
@@ -62,54 +63,68 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
 
+  waiter_teamselect <- Waiter$new(
+    id = "column_team_select",
+    html = spin_dots(),
+    color = transparent(0.5))
+
+
+
   output$league_authbox <- renderUI({
 
     switch(input$platform,
-           "MFL" = league_authbox.mfl(),
-           "Sleeper" = league_authbox.sleeper(),
-           "ESPN" = league_authbox.espn())
+           "MFL" = league_auth.mfl(),
+           "Sleeper" = league_auth.sleeper(),
+           "ESPN" = league_auth.espn())
   })
-
 
   user_obj <- reactiveValues()
 
-  observeEvent({input$platform;input$league_id;input$user_name;input$password},{
-               user_obj$platform <- input$platform
-               user_obj$league_id <- input$league_id
-               user_obj$user_name <- input$user_name
-               user_obj$password <- input$password
-               })
+  observeEvent({
+    input$platform;
+    input$league_id;
+    input$league_select;
+    input$user_name;
+    input$password},{
+      user_obj$platform <- input$platform
+      user_obj$season <- format(Sys.Date(),"%Y")
+      user_obj$league_id <- input$league_id
+      user_obj$league_id <- input$league_select
+      user_obj$user_name <- input$user_name
+      user_obj$password <- input$password
+    })
 
   user_leagues <- eventReactive(
     input$load_user,{
-
       req(input$platform %in% c("MFL","Sleeper"))
-      user_leagues.ffscrapr(user_obj)
 
+      waiter_teamselect$show()
+      on.exit(waiter_teamselect$hide())
+      user_leagues.ffscrapr(user_obj)
     })
 
   output$team_select <- renderUI({
-
     switch(input$platform,
            "MFL" = team_select.ffscrapr(user_leagues()),
            "Sleeper" = team_select.ffscrapr(user_leagues()),
-           "ESPN" = team_select.espn())
+           "ESPN" = team_select.espn()
+           )
   })
 
-  # observe(user_leagues())
+  loaded_data <- reactiveValues()
 
-  # output$team_select <- renderUI({
+  observeEvent({input$league_select;input$league_id},
+    loaded_data <- switch(
+      input$platform,
+      "MFL" = load_data.ffscrapr(user_obj),
+      "Sleeper" = load_data.sleeper(user_obj),
+      "ESPN" = load_data.espn(user_obj))
+  )
 
-    # user_leagues %>%
-    #   select(league_name,
-    #          league_id,
-    #          franchise_name) %>%
-    #   mutate(Select = map_chr(league_id,~actionButton(inputId = paste0('leagueid_',.x), "Select") %>% as.character())) %>%
-    #   clean_names("upper_camel") %>%
-    # reactable()
 
-  # })
 
+  #### DEBUG ####
+  observeEvent(input$debug,browser())
 }
 
 shinyApp(ui, server)
