@@ -1,5 +1,3 @@
-# EP Functions
-
 library(bs4Dash)
 library(shiny)
 
@@ -31,24 +29,23 @@ ui_sidebar <- function(...) {
   )
 }
 
-external_menuItem <- function(text = NULL, href = NULL, icon = NULL){
-  tags$li(tags$a(span(icon(icon),style = "font-size:1.1rem;"),
-                 p(text,style = "margin-left: .5rem;"),
-                 class = "nav-link", href = href),class = "nav-item")
+external_menuItem <- function(text = NULL, href = NULL, icon = NULL) {
+  tags$li(tags$a(span(icon(icon), style = "font-size:1.1rem;"),
+    p(text, style = "margin-left: .5rem;"),
+    class = "nav-link", href = href
+  ), class = "nav-item")
 }
 
-box_about <- function(){
-
+box_about <- function() {
   box(
     width = 12,
     status = "danger",
     title = "About",
     includeMarkdown("about.md")
   )
-
 }
 
-box_leagueselect <- function(){
+box_leagueselect <- function() {
   box(
     width = 12,
     collapsible = TRUE,
@@ -59,64 +56,66 @@ box_leagueselect <- function(){
         width = 4,
         radioGroupButtons(
           inputId = "platform",
-          choices = c("MFL","Sleeper","ESPN"),
+          choices = c("MFL", "Sleeper", "ESPN"),
           selected = "MFL",
           checkIcon = list("yes" = icon("check")),
           status = "danger",
-          justified = TRUE),
-        uiOutput('league_auth'),
+          justified = TRUE
         ),
+        uiOutput("league_authbox"),
+      ),
       column(
         width = 8,
         id = "column_team_select",
-        uiOutput('team_select')
-        )
+        uiOutput("team_select")
+      )
     )
   )
 }
 
-league_auth.mfl <- function(){
+league_auth.mfl <- function() {
   tagList(
     textInput(
-      'user_name',
+      "user_name",
       label = NULL,
       # width = '100%',
-      placeholder = "Username"),
+      placeholder = "Username"
+    ),
     passwordInput(
-      'password',
+      "password",
       label = NULL,
       # width = '100%',
-      placeholder = "Password"),
-    actionButton("load_user","Load My Leagues",class = "btn-success")
+      placeholder = "Password"
+    ),
+    actionButton("load_user", "Load My Leagues", class = "btn-success")
   )
 }
 
-league_auth.sleeper <- function(){
-
+league_auth.sleeper <- function() {
   tagList(
     textInput(
-      'user_name',
+      "user_name",
       label = NULL,
       # width = '100%',
-      placeholder = "Username"),
-    actionButton("load_user","Load My Leagues",class = "btn-success")
+      placeholder = "Username"
+    ),
+    actionButton("load_user", "Load My Leagues", class = "btn-success")
   )
 }
 
-league_auth.espn <- function(){
-
+league_auth.espn <- function() {
   tagList(
     textInput(
-      'league_id',
+      "league_id",
       label = NULL,
       # width = '100%',
-      placeholder = "League ID"),
-    actionButton("load_league","Load My Leagues",class = "btn-success")
+      placeholder = "League ID"
+    ),
+    actionButton("load_league", "Load My Leagues", class = "btn-success")
   )
 }
 
-user_leagues.ffscrapr <- function(user_obj){
-
+user_leagues.ffscrapr <- function(user_obj) {
   conn_user <- ff_connect(
     platform = user_obj$platform,
     season = 2020,
@@ -127,28 +126,35 @@ user_leagues.ffscrapr <- function(user_obj){
   )
 
   ff_userleagues(conn_user) %>%
-    select(league_id,league_name,franchise_name) %>%
+    select(league_id, league_name, franchise_name) %>%
     mutate(
-      select = map_chr(league_id,
-                       ~actionButton(.x,
-                                     "Select",
-                                     class = "btn-primary",
-                                     onclick='Shiny.onInputChange(\"league_select\",  this.id)') %>%
-                         as.character))
+      select = map_chr(
+        league_id,
+        ~ actionButton(.x,
+          "Select",
+          class = "btn-primary",
+          onclick = 'Shiny.onInputChange(\"league_select\",  this.id)'
+        ) %>%
+          as.character()
+      )
+    )
 }
 
-team_select.ffscrapr <- function(user_leagues){
+team_select.ffscrapr <- function(user_leagues) {
   table <- user_leagues %>%
     select(-contains("_id")) %>%
     reactable(
       defaultColDef = colDef(
         # minWidth = 150,
-        header = function(value) make_clean_names(value,"upper_camel",abbreviations = "ID")),
+        header = function(value) make_clean_names(value, "upper_camel", abbreviations = "ID")
+      ),
       columns = list(
         # franchise_name = colDef(minWidth = 150),
-        select = colDef(name = "Select",
-                        html = TRUE,
-                        minWidth = 50)
+        select = colDef(
+          name = "Select",
+          html = TRUE,
+          minWidth = 50
+        )
       ),
       outlined = TRUE,
       striped = TRUE
@@ -157,12 +163,13 @@ team_select.ffscrapr <- function(user_leagues){
   return(div(table))
 }
 
-team_select.espn <- function(){
-  includeMarkdown('espn_note.md')
+team_select.espn <- function() {
+  includeMarkdown("espn_note.md")
 }
 
-load_data.ffscrapr <- function(user_obj){
-  conn <<- ff_connect(
+load_data.ffscrapr <- function(user_obj, loaded_data) {
+  # browser()
+  conn <- ff_connect(
     platform = user_obj$platform,
     season = user_obj$season,
     league_id = user_obj$league_id,
@@ -172,17 +179,67 @@ load_data.ffscrapr <- function(user_obj){
     rate_limit_seconds = 3
   )
 
-  schedule <- ff_schedule(conn)
-  standings <- ff_standings(conn)
+  schedule_raw <- ff_schedule(conn) %>%
+    select(week, starts_with("franchise"), result, starts_with("opponent")) %>%
+    filter(!is.na(franchise_id))
 
+  standings_raw <- ff_standings(conn) %>%
+    select(franchise_id, franchise_name, starts_with("h2h"), starts_with("allplay"))
+
+  schedule_unplayed <- schedule_raw %>%
+    filter(is.na(franchise_score)) %>%
+    left_join(
+      standings_raw %>%
+        select(franchise_id, franchise_name, franchise_allplay = allplay_winpct),
+      by = "franchise_id"
+    ) %>%
+    left_join(
+      standings_raw %>%
+        select(opponent_id = franchise_id, opponent_name = franchise_name, opponent_allplay = allplay_winpct),
+      by = "opponent_id"
+    ) %>%
+    mutate(
+      win_probability = franchise_allplay / (franchise_allplay + opponent_allplay),
+      win_probability = round(win_probability, 3),
+      loss_probability = 1 - win_probability
+    ) %>%
+    select(-ends_with("score"), -result)
+
+  standings_forecast <- standings_raw %>%
+    select(starts_with('franchise'),starts_with('h2h')) %>%
+    left_join(
+      schedule_unplayed %>%
+        group_by(franchise_id) %>%
+        summarise(
+          forecast_wins = sum(win_probability, na.rm = TRUE),
+          forecast_losses = sum(loss_probability, na.rm = TRUE)
+        ) %>% ungroup(),
+      by = 'franchise_id'
+    ) %>%
+    mutate(total_wins = h2h_wins + forecast_wins,
+           total_losses = h2h_losses + forecast_losses,
+           total_winpct = total_wins / (total_wins + total_losses + h2h_ties),
+           total_winpct = round(total_winpct,3))
+
+  schedule_pivot <- schedule_unplayed %>%
+    left_join(
+      standings_forecast %>% select(franchise_id,total_wins),
+      by = 'franchise_id'
+    ) %>%
+    arrange(week,desc(total_wins)) %>%
+    select(franchise_name,week,win_probability) %>%
+    pivot_wider(names_from = "week",
+                values_from = 'win_probability',
+                names_prefix = "Week ",
+                values_fn = sum) %>%
+    clean_names("title")
+
+  loaded_data$schedule_unplayed <- schedule_unplayed
+  loaded_data$standings_forecast <- standings_forecast
+  loaded_data$schedule_pivot <- schedule_pivot
+  loaded_data$schedule_raw <- schedule_raw
+  loaded_data$standings_raw <- standings_raw
+
+  return(loaded_data)
 }
 
-load_schedule.sleeper <- function(){}
-
-load_schedule.espn <- function(){}
-
-load_standings.ffscrapr <- function(){}
-
-load_standings.sleeper <- function(){}
-
-load_standings.espn <- function(){}
