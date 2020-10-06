@@ -167,6 +167,8 @@ team_select.espn <- function() {
   includeMarkdown("espn_note.md")
 }
 
+test_userobj <- function(){list(platform = "MFL",season = 2020, league_id = 54040, user_name = 'solarpool', password = 'M^#63tho')}
+
 load_data.ffscrapr <- function(user_obj, loaded_data) {
   # browser()
   conn <- ff_connect(
@@ -243,8 +245,16 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
   return(loaded_data)
 }
 
-loss_colour <- colorRampPalette(c("#7fbf7b", "#F7F7F7", "#af8dc3"))
-win_colour <- colorRampPalette(c("#af8dc3", "#F7F7F7", "#7fbf7b"))
+make_color_pal <- function(colors, bias = 1) {
+  get_color <- colorRamp(colors, bias = bias)
+  function(x) rgb(get_color(x), maxColorValue = 255)
+}
+
+win_colour <- make_color_pal(c("#af8dc3", "#F7F7F7", "#7fbf7b"), bias = 1)
+loss_colour <- make_color_pal(c("#7fbf7b", "#F7F7F7", "#af8dc3"), bias = 1)
+
+# loss_colour <- colorRampPalette(c("#7fbf7b", "#F7F7F7", "#af8dc3"))
+# win_colour <- colorRampPalette(c("#af8dc3", "#F7F7F7", "#7fbf7b"))
 
 season_projection <- function(loaded_data){
 
@@ -253,7 +263,7 @@ season_projection <- function(loaded_data){
     reactable(
       columns = list(
         franchise_name = colDef(
-          minWidth = 200,
+          minWidth = 250,
           name = "Franchise Name"
         )
       ),
@@ -268,6 +278,24 @@ season_projection <- function(loaded_data){
 
         style = function(value,index, name){
           x <- list()
+
+          if(str_detect(name,"win")) {
+
+            normalized <- (value - min(loaded_data$standings_forecast[[name]])) / (max(loaded_data$standings_forecast[[name]]) - min(loaded_data$standings_forecast[[name]]))
+
+            colour <- win_colour(normalized)
+
+            x <- c(x,list(background = colour))}
+
+          if(str_detect(name,"loss")) {
+
+            normalized <- (value - min(loaded_data$standings_forecast[[name]])) / (max(loaded_data$standings_forecast[[name]]) - min(loaded_data$standings_forecast[[name]]))
+
+            colour <- loss_colour(normalized)
+
+            x <- c(x,list(background = colour))
+          }
+
           if(str_detect(name,"h2h_wins|forecast_wins")) { x <- c(x,list(borderLeft = "1px solid #555"))}
           return(x)
         }
@@ -275,7 +303,14 @@ season_projection <- function(loaded_data){
       columnGroups = list(
         colGroup(name = "Current Season", columns = c("h2h_wins","h2h_losses","h2h_ties","h2h_winpct")),
         colGroup(name = "Forecast", columns = c("forecast_wins", "forecast_losses", "total_wins"))
-      )
+      ),
+      showPageSizeOptions = TRUE,
+      defaultPageSize = 25,
+      borderless = TRUE,
+      showSortIcon = TRUE,
+      highlight = TRUE,
+      outlined = TRUE,
+      striped = TRUE
     )
 
   box(
@@ -287,41 +322,42 @@ season_projection <- function(loaded_data){
 
 }
 
-# weekly_schedule <- function(loaded_data){
-#   table_forecast <- loaded_data$ %>%
-#     select(-franchise_id) %>%
-#     reactable(
-#       columns = list(
-#         franchise_name = colDef(
-#           minWidth = 200,
-#           name = "Franchise Name"
-#         )
-#       ),
-#       defaultColDef = colDef(
-#         header = function(value) {
-#           make_clean_names(value,'title',abbrev = c("AllPlay","H2H","WinPct"))},
-#         cell = function(value,index,name) {
-#           if(str_detect(name,"winpct")){value <- scales::percent(value, accuracy = 0.1)}
-#           if(is.numeric(value) & !str_detect(name,"h2h|winpct")) {value <- scales::number(value, accuracy = 0.01)}
-#           return(value)
-#         },
-#
-#         style = function(value,index, name){
-#           x <- list()
-#           if(str_detect(name,"h2h_wins|forecast_wins")) { x <- c(x,list(borderLeft = "1px solid #555"))}
-#           return(x)
-#         }
-#       ),
-#       columnGroups = list(
-#         colGroup(name = "Current Season", columns = c("h2h_wins","h2h_losses","h2h_ties","h2h_winpct")),
-#         colGroup(name = "Forecast", columns = c("forecast_wins", "forecast_losses", "total_wins"))
-#       )
-#     )
-#
-#   box(
-#     width = 12,
-#     title = "Season Forecast",
-#     status = "danger",
-#     table_forecast
-#   )
-# }
+weekly_schedule <- function(loaded_data){
+  table_weekly <- loaded_data$schedule_pivot %>%
+    reactable(
+      columns = list(
+        `Franchise Name` = colDef(
+          minWidth = 250
+        )
+      ),
+      defaultColDef = colDef(
+        style = function(value,index, name){
+          x <- list()
+
+          if(str_detect(name,"Week")) {
+            normalized <- (value - min(loaded_data$schedule_pivot[[name]])) / (max(loaded_data$schedule_pivot[[name]]) - min(loaded_data$schedule_pivot[[name]]))
+
+            colour <- win_colour(normalized)
+
+            x <- c(x,list(background = colour))
+          }
+
+          return(x)
+        }
+      ),
+      showPageSizeOptions = TRUE,
+      defaultPageSize = 25,
+      borderless = TRUE,
+      showSortIcon = TRUE,
+      highlight = TRUE,
+      outlined = TRUE,
+      striped = TRUE
+    )
+
+  box(
+    width = 12,
+    title = "Remaining Schedule",
+    status = "danger",
+    table_weekly
+  )
+}

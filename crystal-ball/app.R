@@ -149,6 +149,13 @@ server <- function(input, output, session) {
 
   })
 
+  output$weekly_schedule <- renderUI({
+    req(loaded_data$schedule_pivot)
+
+    weekly_schedule(loaded_data)
+
+  })
+
 
   #### DEBUG ####
   observeEvent(input$debug, browser())
