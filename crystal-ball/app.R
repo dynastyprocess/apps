@@ -32,13 +32,14 @@ suppressPackageStartupMessages({
   library(reactable)
   library(RColorBrewer)
   library(waiter)
+  library(sever)
 
   # Data output
   library(writexl)
 
 })
 
-source("fn_ui.R")
+source("functions.R")
 options(dplyr.summarise.inform = FALSE)
 
 ui <- dashboardPage(
@@ -52,6 +53,7 @@ ui <- dashboardPage(
   body = dashboardBody(
     includeCSS("dp.css"),
     use_waiter(),
+    use_sever(),
     tabItems(
       tabItem(
         tabName = "crystalball",
@@ -59,6 +61,7 @@ ui <- dashboardPage(
         box_leagueselect(),
         uiOutput("season_projections"),
         uiOutput("weekly_schedule"),
+        uiOutput("download_button"),
         actionButton("debug", "debug")
       )
     )
@@ -67,6 +70,10 @@ ui <- dashboardPage(
 
 
 server <- function(input, output, session) {
+
+
+  sever_dp()
+
   waiter_teamselect <- Waiter$new(
     id = "column_team_select",
     html = spin_dots(),
@@ -157,6 +164,22 @@ server <- function(input, output, session) {
 
   })
 
+  output$download_button <- renderUI({
+    req(loaded_data$standings_forecast)
+
+    div(downloadButton('download',"Download Data!"), style = 'text-align:center;')
+  })
+
+  output$download <- downloadHandler(
+    filename = glue::glue("DP_CrystalBall_{Sys.Date()}.xlsx"),
+    content = function(file){
+      write_xlsx(
+        reactiveValuesToList(loaded_data),
+        path = file,
+        format_headers = TRUE
+      )
+    }
+  )
 
   #### DEBUG ####
   observeEvent(input$debug, browser())

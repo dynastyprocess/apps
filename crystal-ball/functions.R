@@ -74,6 +74,24 @@ box_leagueselect <- function() {
   )
 }
 
+sever_dp <- function(){
+
+  sever::sever(
+    shiny::tagList(
+      shiny::h1("Disconnected"),
+      shiny::tags$button(
+        "Reload",
+        style = "color:#000;background-color:#fff;",
+        class = "button button-raised",
+        onClick = "location.reload();"
+      )
+    ),
+    bg_color = "#000"
+  )
+}
+
+#### League Authentication ####
+
 league_auth.mfl <- function() {
   tagList(
     textInput(
@@ -87,7 +105,9 @@ league_auth.mfl <- function() {
       label = NULL,
       # width = '100%',
       placeholder = "Password"
-    ),
+    ) %>%
+      bs4TooltipUI(placement = 'bottom',
+        title = "Username / Password are used only to authenticate to the MFL API and is not stored by the app!"),
     actionButton("load_user", "Load My Leagues", class = "btn-success")
   )
 }
@@ -115,6 +135,8 @@ league_auth.espn <- function() {
     actionButton("load_league", "Load My Leagues", class = "btn-success")
   )
 }
+
+#### Select League ####
 
 user_leagues.ffscrapr <- function(user_obj) {
   conn_user <- ff_connect(
@@ -167,6 +189,8 @@ team_select.ffscrapr <- function(user_leagues) {
 team_select.espn <- function() {
   includeMarkdown("espn_note.md")
 }
+
+#### Load Data ####
 
 test_userobj <- function(){list(platform = "MFL",season = 2020, league_id = 54040, user_name = 'solarpool', password = 'M^#63tho')}
 
@@ -254,8 +278,7 @@ make_color_pal <- function(colors, bias = 1) {
 win_colour <- make_color_pal(c("#af8dc3", "#F7F7F7", "#7fbf7b"), bias = 1)
 loss_colour <- make_color_pal(c("#7fbf7b", "#F7F7F7", "#af8dc3"), bias = 1)
 
-# loss_colour <- colorRampPalette(c("#7fbf7b", "#F7F7F7", "#af8dc3"))
-# win_colour <- colorRampPalette(c("#af8dc3", "#F7F7F7", "#7fbf7b"))
+#### Display Data ####
 
 season_projection <- function(loaded_data){
 
