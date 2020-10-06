@@ -48,6 +48,7 @@ box_about <- function() {
 box_leagueselect <- function() {
   box(
     width = 12,
+    inputId = "box_leagueselect",
     collapsible = TRUE,
     status = "danger",
     title = "Select League",
@@ -279,6 +280,8 @@ season_projection <- function(loaded_data){
         style = function(value,index, name){
           x <- list()
 
+          if(is.numeric(value)) x <- c(x,fontFamily = "Ubuntu Mono")
+
           if(str_detect(name,"win")) {
 
             normalized <- (value - min(loaded_data$standings_forecast[[name]])) / (max(loaded_data$standings_forecast[[name]]) - min(loaded_data$standings_forecast[[name]]))
@@ -302,7 +305,7 @@ season_projection <- function(loaded_data){
       ),
       columnGroups = list(
         colGroup(name = "Current Season", columns = c("h2h_wins","h2h_losses","h2h_ties","h2h_winpct")),
-        colGroup(name = "Forecast", columns = c("forecast_wins", "forecast_losses", "total_wins"))
+        colGroup(name = "Forecast", columns = c("forecast_wins", "forecast_losses", "total_wins", "total_losses", "total_winpct"))
       ),
       showPageSizeOptions = TRUE,
       defaultPageSize = 25,
@@ -334,12 +337,14 @@ weekly_schedule <- function(loaded_data){
         style = function(value,index, name){
           x <- list()
 
+          if(is.numeric(value)) x <- c(x,fontFamily = "Ubuntu Mono")
+
           if(str_detect(name,"Week")) {
             normalized <- (value - min(loaded_data$schedule_pivot[[name]])) / (max(loaded_data$schedule_pivot[[name]]) - min(loaded_data$schedule_pivot[[name]]))
 
             colour <- win_colour(normalized)
 
-            x <- c(x,list(background = colour))
+            x <- c(x,list(background = colour, fontFamily = "Ubuntu Mono"))
           }
 
           return(x)

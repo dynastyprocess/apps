@@ -73,8 +73,6 @@ server <- function(input, output, session) {
     color = transparent(0.5)
   )
 
-
-
   output$league_authbox <- renderUI({
     switch(input$platform,
       "MFL" = league_auth.mfl(),
@@ -131,7 +129,10 @@ server <- function(input, output, session) {
         html = spin_dots(),
         color = transparent(0.5))
 
-      on.exit(waiter_hide())
+      on.exit({
+        waiter_hide()
+        bs4Dash::updatebs4Card('box_leagueselect',session,'toggle')
+        })
 
       loaded_data <- switch(
         input$platform,
