@@ -262,6 +262,7 @@ season_projection <- function(loaded_data){
           make_clean_names(value,'title',abbrev = c("AllPlay","H2H","WinPct"))},
         cell = function(value,index,name) {
           if(str_detect(name,"winpct")){value <- scales::percent(value, accuracy = 0.1)}
+          if(is.numeric(value) & !str_detect(name,"h2h|winpct")) {value <- scales::number(value, accuracy = 0.01)}
           return(value)
         },
 
@@ -285,3 +286,42 @@ season_projection <- function(loaded_data){
     )
 
 }
+
+# weekly_schedule <- function(loaded_data){
+#   table_forecast <- loaded_data$ %>%
+#     select(-franchise_id) %>%
+#     reactable(
+#       columns = list(
+#         franchise_name = colDef(
+#           minWidth = 200,
+#           name = "Franchise Name"
+#         )
+#       ),
+#       defaultColDef = colDef(
+#         header = function(value) {
+#           make_clean_names(value,'title',abbrev = c("AllPlay","H2H","WinPct"))},
+#         cell = function(value,index,name) {
+#           if(str_detect(name,"winpct")){value <- scales::percent(value, accuracy = 0.1)}
+#           if(is.numeric(value) & !str_detect(name,"h2h|winpct")) {value <- scales::number(value, accuracy = 0.01)}
+#           return(value)
+#         },
+#
+#         style = function(value,index, name){
+#           x <- list()
+#           if(str_detect(name,"h2h_wins|forecast_wins")) { x <- c(x,list(borderLeft = "1px solid #555"))}
+#           return(x)
+#         }
+#       ),
+#       columnGroups = list(
+#         colGroup(name = "Current Season", columns = c("h2h_wins","h2h_losses","h2h_ties","h2h_winpct")),
+#         colGroup(name = "Forecast", columns = c("forecast_wins", "forecast_losses", "total_wins"))
+#       )
+#     )
+#
+#   box(
+#     width = 12,
+#     title = "Season Forecast",
+#     status = "danger",
+#     table_forecast
+#   )
+# }
