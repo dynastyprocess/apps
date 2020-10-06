@@ -30,6 +30,7 @@ suppressPackageStartupMessages({
   library(bs4Dash)
   library(shinyWidgets)
   library(reactable)
+  library(RColorBrewer)
   library(waiter)
 
   # Data output
@@ -141,6 +142,12 @@ server <- function(input, output, session) {
     }
   )
 
+  output$season_projections <- renderUI({
+    req(loaded_data$standings_forecast)
+
+    season_projection(loaded_data)
+
+  })
 
 
   #### DEBUG ####
