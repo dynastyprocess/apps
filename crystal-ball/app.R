@@ -30,10 +30,16 @@ suppressPackageStartupMessages({
   library(bs4Dash)
   library(shinyWidgets)
   library(reactable)
+  library(RColorBrewer)
   library(waiter)
+  library(sever)
+
+  # Data output
+  library(writexl)
+
 })
 
-source("fn_ui.R")
+source("functions.R")
 options(dplyr.summarise.inform = FALSE)
 
 ui <- dashboardPage(
@@ -45,8 +51,9 @@ ui <- dashboardPage(
     external_menuItem("More by DynastyProcess", "https://dynastyprocess.com", icon = "quidditch")
   ),
   body = dashboardBody(
-    includeCSS('dp.css'),
+    includeCSS("dp.css"),
     use_waiter(),
+    use_sever(),
     tabItems(
       tabItem(
         tabName = "crystalball",
@@ -54,8 +61,9 @@ ui <- dashboardPage(
         box_leagueselect(),
         uiOutput("season_projections"),
         uiOutput("weekly_schedule"),
-        actionButton('debug','debug')
-        )
+        uiOutput("download_button"),
+        actionButton("debug", "debug")
+      )
     )
   )
 )
@@ -63,68 +71,118 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
 
+
+  sever_dp()
+
   waiter_teamselect <- Waiter$new(
     id = "column_team_select",
     html = spin_dots(),
-    color = transparent(0.5))
-
-
+    color = transparent(0.5)
+  )
 
   output$league_authbox <- renderUI({
-
     switch(input$platform,
-           "MFL" = league_auth.mfl(),
-           "Sleeper" = league_auth.sleeper(),
-           "ESPN" = league_auth.espn())
+      "MFL" = league_auth.mfl(),
+      "Sleeper" = league_auth.sleeper(),
+      "ESPN" = league_auth.espn()
+    )
   })
 
   user_obj <- reactiveValues()
 
-  observeEvent({
-    input$platform;
-    input$league_id;
-    input$league_select;
-    input$user_name;
-    input$password},{
+  observeEvent(
+    {
+      input$platform
+      input$league_id
+      input$league_select
+      input$user_name
+      input$password
+    },
+    {
       user_obj$platform <- input$platform
-      user_obj$season <- format(Sys.Date(),"%Y")
+      user_obj$season <- format(Sys.Date(), "%Y")
       user_obj$league_id <- input$league_id
       user_obj$league_id <- input$league_select
       user_obj$user_name <- input$user_name
       user_obj$password <- input$password
-    })
+    }
+  )
 
   user_leagues <- eventReactive(
-    input$load_user,{
-      req(input$platform %in% c("MFL","Sleeper"))
+    input$load_user,
+    {
+      req(input$platform %in% c("MFL", "Sleeper"))
 
       waiter_teamselect$show()
       on.exit(waiter_teamselect$hide())
       user_leagues.ffscrapr(user_obj)
-    })
+    }
+  )
 
   output$team_select <- renderUI({
     switch(input$platform,
-           "MFL" = team_select.ffscrapr(user_leagues()),
-           "Sleeper" = team_select.ffscrapr(user_leagues()),
-           "ESPN" = team_select.espn()
-           )
+      "MFL" = team_select.ffscrapr(user_leagues()),
+      "Sleeper" = team_select.ffscrapr(user_leagues()),
+      "ESPN" = team_select.espn()
+    )
   })
 
   loaded_data <- reactiveValues()
 
-  observeEvent({input$league_select;input$league_id},
-    loaded_data <- switch(
-      input$platform,
-      "MFL" = load_data.ffscrapr(user_obj),
-      "Sleeper" = load_data.sleeper(user_obj),
-      "ESPN" = load_data.espn(user_obj))
+  observeEvent(
+    user_obj$league_id,
+    {
+      waiter_show(
+        html = spin_dots(),
+        color = transparent(0.5))
+
+      on.exit({
+        waiter_hide()
+        bs4Dash::updatebs4Card('box_leagueselect',session,'toggle')
+        })
+
+      loaded_data <- switch(
+        input$platform,
+        "MFL" = load_data.ffscrapr(user_obj, loaded_data),
+        "Sleeper" = load_data.sleeper(user_obj, loaded_data),
+        "ESPN" = load_data.espn(user_obj, loaded_data)
+      )
+    }
   )
 
+  output$season_projections <- renderUI({
+    req(loaded_data$standings_forecast)
 
+    season_projection(loaded_data)
+
+  })
+
+  output$weekly_schedule <- renderUI({
+    req(loaded_data$schedule_pivot)
+
+    weekly_schedule(loaded_data)
+
+  })
+
+  output$download_button <- renderUI({
+    req(loaded_data$standings_forecast)
+
+    div(downloadButton('download',"Download Data!"), style = 'text-align:center;')
+  })
+
+  output$download <- downloadHandler(
+    filename = glue::glue("DP_CrystalBall_{Sys.Date()}.xlsx"),
+    content = function(file){
+      write_xlsx(
+        reactiveValuesToList(loaded_data),
+        path = file,
+        format_headers = TRUE
+      )
+    }
+  )
 
   #### DEBUG ####
-  observeEvent(input$debug,browser())
+  observeEvent(input$debug, browser())
 }
 
 shinyApp(ui, server)
