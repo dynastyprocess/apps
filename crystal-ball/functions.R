@@ -201,9 +201,9 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
     season = user_obj$season,
     league_id = user_obj$league_id,
     user_name = user_obj$user_name,
-    password = user_obj$password,
-    rate_limit_number = 2,
-    rate_limit_seconds = 3
+    password = user_obj$password
+    # rate_limit_number = 2,
+    # rate_limit_seconds = 3
   )
 
   schedule_raw <- ff_schedule(conn) %>%
@@ -214,7 +214,7 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
     select(franchise_id, franchise_name, starts_with("h2h"), starts_with("allplay"))
 
   schedule_unplayed <- schedule_raw %>%
-    filter(is.na(franchise_score)) %>%
+    filter(is.na(franchise_score) | is.na(result)) %>%
     left_join(
       standings_raw %>%
         select(franchise_id, franchise_name, franchise_allplay = allplay_winpct),
@@ -225,6 +225,7 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
         select(opponent_id = franchise_id, opponent_name = franchise_name, opponent_allplay = allplay_winpct),
       by = "opponent_id"
     ) %>%
+    mutate_if(is.numeric,replace_na,0) %>%
     mutate(
       win_probability = franchise_allplay / (franchise_allplay + opponent_allplay),
       win_probability = round(win_probability, 3),
@@ -246,7 +247,8 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
     mutate(total_wins = h2h_wins + forecast_wins,
            total_losses = h2h_losses + forecast_losses,
            total_winpct = total_wins / (total_wins + total_losses + h2h_ties),
-           total_winpct = round(total_winpct,3))
+           total_winpct = round(total_winpct,3)) %>%
+    arrange(desc(total_winpct))
 
   schedule_pivot <- schedule_unplayed %>%
     left_join(
