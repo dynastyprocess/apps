@@ -57,7 +57,7 @@ box_leagueselect <- function() {
         width = 4,
         radioGroupButtons(
           inputId = "platform",
-          choices = c("MFL", "Sleeper", "ESPN"),
+          choices = c("MFL", "Sleeper"),
           selected = "MFL",
           checkIcon = list("yes" = icon("check")),
           status = "danger",
@@ -201,7 +201,8 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
     season = user_obj$season,
     league_id = user_obj$league_id,
     user_name = user_obj$user_name,
-    password = user_obj$password
+    password = user_obj$password,
+    user_agent = 'dynastyprocess/apps'
     # rate_limit_number = 2,
     # rate_limit_seconds = 3
   )
