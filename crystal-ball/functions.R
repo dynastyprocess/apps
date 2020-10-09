@@ -291,7 +291,9 @@ season_projection <- function(loaded_data){
       columns = list(
         franchise_name = colDef(
           minWidth = 250,
-          name = "Franchise Name"
+          name = "Franchise Name",
+          style = .sticky_style,
+          headerStyle = .sticky_style
         )
       ),
       defaultColDef = colDef(
@@ -351,15 +353,24 @@ season_projection <- function(loaded_data){
 
 }
 
+.sticky_style <- list(position = "sticky", left = 0, background = "#fff", zIndex = 1,
+                     borderRight = "1px solid #eee")
+
 weekly_schedule <- function(loaded_data){
   table_weekly <- loaded_data$schedule_pivot %>%
     reactable(
       columns = list(
         `Franchise Name` = colDef(
-          minWidth = 250
+          minWidth = 250,
+          style = .sticky_style,
+          headerStyle = .sticky_style
         )
       ),
       defaultColDef = colDef(
+        cell = function(value) {
+          if(is.numeric(value)) value <- scales::number(value, accuracy = 0.001)
+          return(value)
+        },
         style = function(value,index, name){
           x <- list()
 

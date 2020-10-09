@@ -140,12 +140,17 @@ server <- function(input, output, session) {
         bs4Dash::updatebs4Card('box_leagueselect',session,'toggle')
         })
 
-      loaded_data <- switch(
-        input$platform,
-        "MFL" = load_data.ffscrapr(user_obj, loaded_data),
-        "Sleeper" = load_data.ffscrapr(user_obj, loaded_data),
-        "ESPN" = load_data.espn(user_obj, loaded_data)
-      )
+      loaded_data <-
+        tryCatch(
+          load_data.ffscrapr(user_obj, loaded_data),
+          error = function(e) {
+            showModal(
+              modalDialog(
+                title = "Oh no, ran into an error!",
+                glue("Couldn't load data for {user_obj$platform} league {user_obj$league_id}.")))
+              }
+        )
+
     }
   )
 
