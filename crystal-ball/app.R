@@ -62,7 +62,7 @@ ui <- dashboardPage(
         uiOutput("season_projections"),
         uiOutput("weekly_schedule"),
         uiOutput("download_button"),
-        actionButton("debug", "debug")
+        # actionButton("debug", "debug")
       )
     )
   )
@@ -70,7 +70,6 @@ ui <- dashboardPage(
 
 
 server <- function(input, output, session) {
-
 
   sever_dp()
 
@@ -144,7 +143,7 @@ server <- function(input, output, session) {
       loaded_data <- switch(
         input$platform,
         "MFL" = load_data.ffscrapr(user_obj, loaded_data),
-        "Sleeper" = load_data.sleeper(user_obj, loaded_data),
+        "Sleeper" = load_data.ffscrapr(user_obj, loaded_data),
         "ESPN" = load_data.espn(user_obj, loaded_data)
       )
     }
