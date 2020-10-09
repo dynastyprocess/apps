@@ -57,7 +57,8 @@ colClean <- function(x) {str_to_upper(gsub("_", " ", colnames(x), fixed = TRUE))
 # Import Data -------------------------------------------------------------
 
 setwd(here::here())
-epdata <- read_parquet("ep_1999_2019.pdata")
+epdata <- read_parquet("ep_1999_2019.pdata") %>% 
+  filter(season >= 2011)
 vars <- epdata %>% select(contains("pass"), contains("rush"), contains("rec"), contains("total"), -contains("team"), -contains("proxy")) %>%
   colClean() %>% sort()
 week_seasons <- epdata %>% arrange(Season, Week) %>% distinct(week_season) %>% as_vector()
@@ -131,7 +132,7 @@ ui <- dashboardPage(
                     column(width = 4,
                            pickerInput("selectSeason",
                                        "Select Seasons:",
-                                       choices = sort(unique(epdata$Season)),
+                                       choices = rev(sort(unique(epdata$Season))),
                                        selected = c("2019","2020"),
                                        multiple = TRUE),
                            pickerInput("selectPlayers",
