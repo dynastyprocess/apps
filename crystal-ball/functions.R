@@ -57,7 +57,7 @@ box_leagueselect <- function() {
         width = 4,
         radioGroupButtons(
           inputId = "platform",
-          choices = c("MFL", "Sleeper", "ESPN"),
+          choices = c("MFL", "Sleeper"),
           selected = "MFL",
           checkIcon = list("yes" = icon("check")),
           status = "danger",
@@ -202,8 +202,9 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
     league_id = user_obj$league_id,
     user_name = user_obj$user_name,
     password = user_obj$password,
-    rate_limit_number = 2,
-    rate_limit_seconds = 3
+    user_agent = 'dynastyprocess/apps'
+    # rate_limit_number = 2,
+    # rate_limit_seconds = 3
   )
 
   schedule_raw <- ff_schedule(conn) %>%
@@ -214,7 +215,7 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
     select(franchise_id, franchise_name, starts_with("h2h"), starts_with("allplay"))
 
   schedule_unplayed <- schedule_raw %>%
-    filter(is.na(franchise_score)) %>%
+    filter(is.na(franchise_score) | is.na(result)) %>%
     left_join(
       standings_raw %>%
         select(franchise_id, franchise_name, franchise_allplay = allplay_winpct),
@@ -225,6 +226,7 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
         select(opponent_id = franchise_id, opponent_name = franchise_name, opponent_allplay = allplay_winpct),
       by = "opponent_id"
     ) %>%
+    mutate_if(is.numeric,replace_na,0) %>%
     mutate(
       win_probability = franchise_allplay / (franchise_allplay + opponent_allplay),
       win_probability = round(win_probability, 3),
@@ -246,7 +248,8 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
     mutate(total_wins = h2h_wins + forecast_wins,
            total_losses = h2h_losses + forecast_losses,
            total_winpct = total_wins / (total_wins + total_losses + h2h_ties),
-           total_winpct = round(total_winpct,3))
+           total_winpct = round(total_winpct,3)) %>%
+    arrange(desc(total_winpct))
 
   schedule_pivot <- schedule_unplayed %>%
     left_join(
@@ -288,7 +291,9 @@ season_projection <- function(loaded_data){
       columns = list(
         franchise_name = colDef(
           minWidth = 250,
-          name = "Franchise Name"
+          name = "Franchise Name",
+          style = .sticky_style,
+          headerStyle = .sticky_style
         )
       ),
       defaultColDef = colDef(
@@ -348,15 +353,24 @@ season_projection <- function(loaded_data){
 
 }
 
+.sticky_style <- list(position = "sticky", left = 0, background = "#fff", zIndex = 1,
+                     borderRight = "1px solid #eee")
+
 weekly_schedule <- function(loaded_data){
   table_weekly <- loaded_data$schedule_pivot %>%
     reactable(
       columns = list(
         `Franchise Name` = colDef(
-          minWidth = 250
+          minWidth = 250,
+          style = .sticky_style,
+          headerStyle = .sticky_style
         )
       ),
       defaultColDef = colDef(
+        cell = function(value) {
+          if(is.numeric(value)) value <- scales::number(value, accuracy = 0.001)
+          return(value)
+        },
         style = function(value,index, name){
           x <- list()
 

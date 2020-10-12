@@ -62,7 +62,7 @@ ui <- dashboardPage(
         uiOutput("season_projections"),
         uiOutput("weekly_schedule"),
         uiOutput("download_button"),
-        actionButton("debug", "debug")
+        # actionButton("debug", "debug")
       )
     )
   )
@@ -70,7 +70,6 @@ ui <- dashboardPage(
 
 
 server <- function(input, output, session) {
-
 
   sever_dp()
 
@@ -81,11 +80,12 @@ server <- function(input, output, session) {
   )
 
   output$league_authbox <- renderUI({
-    switch(input$platform,
-      "MFL" = league_auth.mfl(),
-      "Sleeper" = league_auth.sleeper(),
-      "ESPN" = league_auth.espn()
-    )
+
+      switch(input$platform,
+             "MFL" = league_auth.mfl(),
+             "Sleeper" = league_auth.sleeper()
+      )
+
   })
 
   user_obj <- reactiveValues()
@@ -115,11 +115,26 @@ server <- function(input, output, session) {
 
       waiter_teamselect$show()
       on.exit(waiter_teamselect$hide())
+
+      x <- tryCatch({
       user_leagues.ffscrapr(user_obj)
+      },
+      error = function(e){
+        showModal(
+          modalDialog(
+            title = "Oh no, ran into an error!",
+            glue("Couldn't load leagues for {user_obj$platform} user {user_obj$user_name}.")))
+        return(NULL)
+      })
+
+      return(x)
     }
   )
 
   output$team_select <- renderUI({
+
+    req(user_leagues())
+
     switch(input$platform,
       "MFL" = team_select.ffscrapr(user_leagues()),
       "Sleeper" = team_select.ffscrapr(user_leagues()),
@@ -141,12 +156,17 @@ server <- function(input, output, session) {
         bs4Dash::updatebs4Card('box_leagueselect',session,'toggle')
         })
 
-      loaded_data <- switch(
-        input$platform,
-        "MFL" = load_data.ffscrapr(user_obj, loaded_data),
-        "Sleeper" = load_data.sleeper(user_obj, loaded_data),
-        "ESPN" = load_data.espn(user_obj, loaded_data)
-      )
+      loaded_data <-
+        tryCatch(
+          load_data.ffscrapr(user_obj, loaded_data),
+          error = function(e) {
+            showModal(
+              modalDialog(
+                title = "Oh no, ran into an error!",
+                glue("Couldn't load data for {user_obj$platform} league {user_obj$league_id}.")))
+              }
+        )
+
     }
   )
 
