@@ -213,10 +213,11 @@ all_games <-
   mutate(combo_id = ifelse(is.na(rusher_player_id), receiver_player_id, rusher_player_id),
          combo_name = ifelse(is.na(rusher_gsis_name), receiver_gsis_name, rusher_gsis_name),
          combo_pos = ifelse(is.na(rusher_gsis_pos), receiver_gsis_pos, rusher_gsis_pos)) %>%
-  full_join(passGame, by=c("game_id", "season", "combo_id" = "passer_player_id", "week", "posteam"), keep = TRUE) %>%
-  rename(game_id = game_id.x, season = season.x, week = week.x, posteam = posteam.x) %>% 
-  select(-game_id.y, -season.y, -week.y, -posteam.y) %>% 
-  mutate(player_id = ifelse(is.na(combo_id), passer_player_id, combo_id),
+  full_join(passGame, by=c("game_id", "season", "combo_id" = "passer_player_id", "week", "posteam")) %>%
+  #rename(game_id = game_id.x, season = season.x, week = week.x, posteam = posteam.x) %>% 
+  #select(-game_id.y, -season.y, -week.y, -posteam.y) %>% 
+  mutate(#player_id = ifelse(is.na(combo_id), passer_player_id, combo_id),
+         player_id = combo_id,
          gsis_name = ifelse(is.na(combo_name), passer_gsis_name, combo_name),
          gsis_pos = ifelse(is.na(combo_pos), passer_gsis_pos, combo_pos),
          proxy_pass_fp = ifelse(gsis_pos == "QB", pass_fp, rec_fp),
