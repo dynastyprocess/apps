@@ -133,7 +133,7 @@ ui <- dashboardPage(
                            pickerInput("selectSeason",
                                        "Select Seasons:",
                                        choices = rev(sort(unique(epdata$Season))),
-                                       selected = c("2019","2020"),
+                                       selected = c("2020"),
                                        multiple = TRUE),
                            pickerInput("selectPlayers",
                                        "Select Players:",
@@ -369,7 +369,11 @@ server <- function(input, output, session) {
       #                                                             TRUE ~ 16),
       #                                           to = length(plot_breaks))]) +
       if(input$pivot_trendlines){geom_smooth(aes(x=week_season_num_smooth, y = .data[[inputVar()]]),
-                                             method = "loess", na.rm = TRUE, fill = NA)} 
+                                             method = "lm",
+                                             formula = y ~ splines::bs(x, 3),
+                                             #formula = "y ~ poly(x, 3)",
+                                             na.rm = TRUE,
+                                             fill = NA)} 
   })
   
   get_season_weeks <- function(year){
