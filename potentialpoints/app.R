@@ -126,9 +126,9 @@ ui <-
 
 server <- function(input, output, session) {
   
-  track_usage(storage_mode = store_sqlite(path = "logs/"))
+  # track_usage(storage_mode = store_sqlite(path = "logs/"))
   
-  espnbasic<- eventReactive(input$load,fromJSON(paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2019/segments/0/leagues/',
+  espnbasic<- eventReactive(input$load,fromJSON(paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2020/segments/0/leagues/',
                               input$leagueid,
                               '?view=mSettings',
                               '&view=mTeam'),flatten=TRUE))
@@ -149,11 +149,9 @@ server <- function(input, output, session) {
   owners <- reactive({
     espnbasic()$members %>%
       select(id, owner_name = displayName) %>%
-      nest_join(teams(),
-                by = c('id' = 'primaryOwner'),
-                name = 'teams') %>%
-      hoist(teams, team_id = 'id', team_name = 'team_name') %>%
-      select(-teams) %>%
+      left_join(
+        teams() %>% select('team_id' = 'id','team_name','primaryOwner'),
+        by = c('id' = 'primaryOwner')) %>%
       unnest(team_id, team_name)
   })
 
@@ -161,7 +159,7 @@ server <- function(input, output, session) {
     
     optimal_lineups<-tibble()
     
-    espn<- fromJSON(paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2019/segments/0/leagues/',
+    espn<- fromJSON(paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2020/segments/0/leagues/',
                            league_id,
                            '?scoringPeriodId=',
                            scoreweek,
@@ -217,7 +215,7 @@ server <- function(input, output, session) {
         player = 'playerPoolEntry.player.fullName',
         eligible = 'playerPoolEntry.player.eligibleSlots'
       ) %>%
-      unnest(actual_lineup, player_id, points, player, eligible) %>%
+      unnest(c(actual_lineup, player_id, points, player, eligible)) %>%
       unnest_longer(eligible) %>% 
       mutate(eligible=as.character(eligible)) %>% 
       select(-entries)
@@ -242,21 +240,20 @@ server <- function(input, output, session) {
         anti_join(pos,by=c('player_id'))
     }
     
-    optimal_lineups<-bind_rows(optimal_lineups,starters) %>%
-      nest(data=everything())
+    optimal_lineups<-bind_rows(optimal_lineups,starters)
     
     return(optimal_lineups)
   }
   
   
   details<-eventReactive(input$load,{
-    tibble(league_id=input$leagueid,weeklist=c(input$weekselect[1]:maxweek())) %>%
+    
+    
+    
+    x <- tibble(league_id=input$leagueid,weeklist=c(input$weekselect[1]:maxweek())) %>%
       rowwise() %>% 
       mutate(lineups=lapply(league_id,ppfunction,weeklist)) %>% 
-      unnest_wider(lineups) %>% 
-      unnest_wider(data) %>% 
-      unnest_wider(3) %>% 
-      unnest(-(1:2)) %>%
+      unnest(lineups) %>% 
       left_join(owners(),by="team_id") %>% 
       select(Week=week,Owner=owner_name,Team=team_name,Pos=pos,ActualScore=score,Player=player,Points=points)
   })
@@ -275,10 +272,9 @@ server <- function(input, output, session) {
       arrange(desc(PotentialScore))
   })
   
-
   errortext<-eventReactive(input$load,{
     req(input$leagueid)
-    paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2019/segments/0/leagues/',as.character(input$leagueid),'?view=mSettings')
+    paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2020/segments/0/leagues/',as.character(input$leagueid),'?view=mSettings')
     # HTML(a(href=paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2019/segments/0/leagues/',as.character(input$leagueid),'&view=mSettings'),'Link'))
   })
   
@@ -286,8 +282,6 @@ server <- function(input, output, session) {
                                          HTML(renderMarkdown(text=paste0("[Having trouble? Open this page in an incognito window to see if the app is reading the ESPN API correctly!](",errortext(),")")))
                                          )))
   
-                          
-
   output$details<-renderDT(details(),rownames=FALSE,options=list(scrollX=TRUE,pageLength=25))
   
   output$summary_week<-renderDT(summary_week(),rownames=FALSE,options=list(scrollX=TRUE,lengthChange=FALSE,pageLength=50))
