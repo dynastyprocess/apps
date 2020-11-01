@@ -1,7 +1,3 @@
-library(jsonlite)
-library(tidyverse)
-library(DT)
-
 
 #This is the one with the for loop. One day, Joe will teach me how to wrap reactives around this to make it shiny.
 
