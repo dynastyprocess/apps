@@ -369,8 +369,8 @@ server <- function(input, output, session) {
       #                                                             TRUE ~ 16),
       #                                           to = length(plot_breaks))]) +
       if(input$pivot_trendlines){geom_smooth(aes(x=week_season_num_smooth, y = .data[[inputVar()]]),
-                                             method = "lm",
-                                             formula = y ~ splines::bs(x, 2),
+                                             method = "loess",
+                                             #formula = y ~ splines::bs(x, 2),
                                              #formula = "y ~ poly(x, 3)",
                                              na.rm = TRUE,
                                              fill = NA)} 
