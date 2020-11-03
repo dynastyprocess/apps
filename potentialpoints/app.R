@@ -1,302 +1,152 @@
-library(jsonlite)
-library(tidyverse)
-library(shiny)
-library(shinydashboard)
-library(DT)
-library(markdown)
+source("functions.R")
+options(dplyr.summarise.inform = FALSE)
 
-ui <-
-  dashboardPage(skin = "blue", title = "DynastyProcess Apps: Potential Points Calculator",
-    dashboardHeader(title = a(href = "https://dynastyprocess.com", img(src = "logo-horizontal.png", width ='100%')), titleWidth = 250),
-    dashboardSidebar(
-      #sidebarmenus----
-      width = 250,
-      sidebarMenu(menuItem("ESPN Potential Points", tabName = "espnpp", icon = icon("tv"))
-      ),
-      sidebarMenu(
-        menuItem(
-          "More from DynastyProcess:",
-          icon = icon("rocket"),
-          menuSubItem("Calculator", icon =
-                        icon('calculator'), href = "https://apps.dynastyprocess.com/calculator"),
-          menuSubItem("Database", icon =
-                        icon('database'), href = "https://apps.dynastyprocess.com/database"),
-          menuSubItem("Crystal Ball", icon =
-                        icon('quidditch'), href = "https://apps.dynastyprocess.com/crystalball"),
-          menuSubItem("More!", icon =
-                        icon('rocket'), href = "https://dynastyprocess.com/apps")
-        ))
-    ),
-    dashboardBody(tags$head(
-      #CSS----
-      tags$link(rel = "stylesheet", type = "text/css", href = "www/flatly.css"),
-      tags$style(HTML('
-                                /* logo */
-                                .skin-blue .main-header .logo {
-                                  background-color: #000;
-                                }
-
-                                /* logo when hovered */
-                                .skin-blue .main-header .logo:hover {
-                                  background-color: #555;
-                                }
-
-                                /* navbar (rest of the header) */
-                                .skin-blue .main-header .navbar {
-                                  background-color: #000;
-                                }
-
-                                /* main sidebar */
-                                .skin-blue .main-sidebar {
-                                  background-color: #000;
-                                }
-
-                                /* active selected tab in the sidebarmenu */
-                                .skin-blue .main-sidebar .sidebar .sidebar-menu .active a{
-                                  background-color: #555;
-                                  text-decoration: none;
-                                }
-
-                                /* toggle button when hovered  */
-                                .skin-blue .main-header .navbar .sidebar-toggle:hover{
-                                  background-color: #555;
-                                  text-decoration: none;
-                                }
-                                .skin-blue .sidebar-menu > li.active > a{
-                                  border-left-color: #fff
-                                }
-
-                                /* body */
-                                .content-wrapper, .right-side {
-                                  background-color: #fff;
-                                }
-                                .btn {
-                                  font-size: 12px;
-                                }
-
-                                .selectize-input
-                                {font-size:12px;
-                                min-height:25px;
-                                padding-top:0px;
-                                padding-bottom:0px;
-                                }
-
-        '))
-    ),
-    #Content----
+ui <- dashboardPage(
+  sidebar_collapsed = TRUE,
+  title = "ESPN Potential Points - DynastyProcess.com",
+  navbar = ui_header("ESPN Potential Points - DynastyProcess.com"),
+  sidebar = ui_sidebar(
+    menuItem("ESPN Potential Points", tabName = "espnpp", icon = "hat-wizard"),
+    external_menuItem("More by DynastyProcess", "https://dynastyprocess.com", icon = "quidditch")
+  ),
+  body = dashboardBody(
+    includeCSS("dp.css"),
+    use_waiter(),
+    waiter_on_busy(html = spin_dots(), color = transparent(0.3)),
+    use_sever(),
     tabItems(
-      tabItem(tabName='espnpp',
-              fluidRow(
-                box(width=12, 
-                    titlePanel("DynastyProcess: Potential Points Calculator"),
-                    includeMarkdown('about.md')
-                    )
-              ),
-              fluidRow(
-                box(width=8,
-                    textInput('leagueid',label='ESPN League ID',value='1178049',placeholder="(Public Leagues Only!)"),
-                    sliderInput('weekselect',label = "Select Weeks", value=c(1,17),min=1,max=17, ticks=FALSE),
-                    actionButton('load','Calculate!',icon=icon('calculator')),
-                    br(),
-                    textOutput('leaguename')
-                    ),
-                box(width=4,title='Downloads',
-                    downloadButton('downloadseason',label="Download PP Summary"),
-                    downloadButton('downloadweek',label='Download Weekly Breakdown'))
-              ),
-              fluidRow(
-                    tabBox(width = 12,title = "Summary",side='right',
-                    tabPanel('Total',DTOutput('summary_season')),
-                    tabPanel('Weekly Breakdown',DTOutput('summary_week'))
-              )
-),
-
-              fluidRow(
-                box(title='Details',width=12,solidHeader = TRUE,
-                    DTOutput('details'))
-              ),
-
-              uiOutput('debugbox')
-              )
+      tabItem(
+        tabName = "espnpp",
+        fluidRow(
+          box_inputs(),
+          box_about()
+        ),
+        uiOutput('summary_data')
       )
-      
     )
   )
-  
+)
 
 server <- function(input, output, session) {
-  
-  # track_usage(storage_mode = store_sqlite(path = "logs/"))
-  
-  espnbasic<- eventReactive(input$load,fromJSON(paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2020/segments/0/leagues/',
-                              input$leagueid,
-                              '?view=mSettings',
-                              '&view=mTeam'),flatten=TRUE))
-  
-  leaguename<-reactive(espnbasic()$settings$name)
-  
-  currentweek<-reactive(espnbasic()$status$currentMatchupPeriod)
-  
-  maxweek<-reactive(if_else(input$weekselect[2]<=currentweek(),input$weekselect[2],currentweek()))
-  
-  output$leaguename<-renderText(paste('Loaded:',leaguename()))
-  
-  teams<-reactive({espnbasic()$teams %>% 
-    select(id,primaryOwner, location, nickname) %>% 
-    mutate(team_name=paste(location,nickname)) %>% 
-    select(id,primaryOwner,team_name)})
-  
-  owners <- reactive({
-    espnbasic()$members %>%
-      select(id, owner_name = displayName) %>%
-      left_join(
-        teams() %>% select('team_id' = 'id','team_name','primaryOwner'),
-        by = c('id' = 'primaryOwner')) %>%
-      unnest(team_id, team_name)
-  })
+ 
+  sever_dp()
 
-  ppfunction<-function(league_id,scoreweek){
-    
-    optimal_lineups<-tibble()
-    
-    espn<- fromJSON(paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2020/segments/0/leagues/',
-                           league_id,
-                           '?scoringPeriodId=',
-                           scoreweek,
-                           '&view=mMatchupScore',
-                           '&view=mBoxscore',
-                           #'&view=mScoreboard',
-                           #'&view=mTeam', 
-                           #'&view=mRoster',
-                           '&view=mSettings',
-                           '&view=mRosterSettings'
-                           #'&view=kona_player_info',
-                           #'&view=mNav'
-                           ),flatten=TRUE)
-
-    lineup_settings<-tibble(lineup_id=c(0,2,3,4,5,6,7,16,17,20,21,23,
-                                        8,9,10,11,24,12,13,14,15),
-                            pos=c('QB','RB','RB/WR','WR','WR/TE','TE',
-                                  'OP','DST','K','BE','IR','FLEX',
-                                  'DT','DE','LB','DL','EDR','CB','S','DB','DP'),
-                            priority=c(1,2,5,3,6,4,8,9,10,0,0,11,
-                                       12,13,16,14,15,17,18,19,20)) %>%
-      arrange(lineup_id) %>% 
-      mutate(lineup_id=as.character(lineup_id)) %>% 
-      left_join(tibble(lineup_id=as.character(names(espn$settings$rosterSettings$lineupSlotCounts)),count=espn$settings$rosterSettings$lineupSlotCounts),
-                by='lineup_id') %>% 
-      filter(count!=0 & priority!=0) %>% 
-      arrange(priority)
-    
-    
-    schedule<-espn$schedule %>%
-      select(week=matchupPeriodId,away.teamId,away.entries=away.rosterForCurrentScoringPeriod.entries,
-             home.teamId,home.entries=home.rosterForCurrentScoringPeriod.entries, 
-             home.points=home.totalPoints,away.points=away.totalPoints) %>% 
-      filter(away.entries!='NULL')
-    
-    playerweeks <- schedule %>%
-      select(
-        week,
-        home.teamId = away.teamId,
-        home.entries = away.entries,
-        home.points = away.points
-      ) %>%
-      bind_rows(schedule) %>%
-      select(week,
-             team_id = home.teamId,
-             score = home.points,
-             entries = home.entries) %>%
-      hoist(
-        entries,
-        actual_lineup = 'lineupSlotId',
-        player_id = 'playerId',
-        points = 'playerPoolEntry.appliedStatTotal',
-        player = 'playerPoolEntry.player.fullName',
-        eligible = 'playerPoolEntry.player.eligibleSlots'
-      ) %>%
-      unnest(c(actual_lineup, player_id, points, player, eligible)) %>%
-      unnest_longer(eligible) %>% 
-      mutate(eligible=as.character(eligible)) %>% 
-      select(-entries)
-    
-    unusedplayers<-playerweeks
-    starters<-tibble()
-    
-    for (i in lineup_settings$priority) {
-      pos<-lineup_settings %>% 
-        filter(priority==i) %>% 
-        nest_join(unusedplayers,by=c('lineup_id'='eligible')) %>% 
-        unnest_wider(unusedplayers) %>% 
-        unnest(-(1:3)) %>% 
-        group_by(team_id) %>% 
-        mutate(rank=rank(desc(points),ties.method=c('first'))) %>% 
-        filter(rank<=count)
-      
-      starters<-bind_rows(starters,pos) %>% 
-        arrange(team_id,priority,desc(points))
-      
-      unusedplayers<-unusedplayers %>% 
-        anti_join(pos,by=c('player_id'))
-    }
-    
-    optimal_lineups<-bind_rows(optimal_lineups,starters)
-    
-    return(optimal_lineups)
-  }
+  #### Server-side UI ####
   
-  
-  details<-eventReactive(input$load,{
-    
-    
-    
-    x <- tibble(league_id=input$leagueid,weeklist=c(input$weekselect[1]:maxweek())) %>%
-      rowwise() %>% 
-      mutate(lineups=lapply(league_id,ppfunction,weeklist)) %>% 
-      unnest(lineups) %>% 
-      left_join(owners(),by="team_id") %>% 
-      select(Week=week,Owner=owner_name,Team=team_name,Pos=pos,ActualScore=score,Player=player,Points=points)
+  output$download_button <- renderUI({
+    req(input$load)
+    downloadButton('download_data',label = 'Download to Excel')
   })
   
-  summary_week<-eventReactive(input$load,{
-    details() %>% 
-      group_by(Owner,Week,Team) %>%
-      summarize(ActualScore=mean(ActualScore),PotentialScore=sum(Points)) %>% 
+  output$summary_data <- renderUI({
+    req(input$load)
+    box_summary()
+  })
+
+  #### Get League Info ####
+  
+  league_info <- eventReactive(
+    input$load,
+    get_leagueinfo(input$league_id,input$year_select,input$week_select)
+    )
+  
+  #### Calculate Potential Points ####
+  
+  pp_details <- eventReactive(
+    league_info(),
+    {
+      tibble(
+        league_id = input$league_id,
+        year = input$year_select,
+        scoreweek = c(input$week_select[1]:league_info()$max_week)) %>% 
+        mutate(lineups = pmap(list(league_id,year,scoreweek),get_potentialpoints)) %>% 
+        unnest(lineups) %>% 
+        left_join(league_info()$users, by = 'team_id') %>% 
+        select(Week=week,
+               User=user_name,
+               Team=team_name,
+               Pos=pos,
+               ActualScore=score,
+               Player=player,
+               Points=points)
+      }
+  )
+  
+  summary_week <- reactive(
+    pp_details() %>% 
+      group_by(User,Team, Week) %>% 
+      summarise(ActualScore = mean(ActualScore,na.rm = TRUE),
+                PotentialScore = sum(Points,na.rm = TRUE)) %>% 
       ungroup()
-  })
+  )
   
-  summary_season<-eventReactive(input$load,{
+  summary_season <- reactive(
+    
     summary_week() %>% 
-      group_by(Owner,Team) %>% 
-      summarize(ActualScore=sum(ActualScore),PotentialScore=sum(PotentialScore)) %>% 
+      group_by(User,Team) %>%
+      summarise(ActualScore = sum(ActualScore),
+                PotentialScore = sum(PotentialScore)) %>% 
+      ungroup() %>% 
       arrange(desc(PotentialScore))
-  })
-  
-  errortext<-eventReactive(input$load,{
-    req(input$leagueid)
-    paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2020/segments/0/leagues/',as.character(input$leagueid),'?view=mSettings')
-    # HTML(a(href=paste0('https://fantasy.espn.com/apis/v3/games/ffl/seasons/2019/segments/0/leagues/',as.character(input$leagueid),'&view=mSettings'),'Link'))
-  })
-  
-  output$debugbox<-renderUI(fluidRow(box(title='Debug Link',width=12,
-                                         HTML(renderMarkdown(text=paste0("[Having trouble? Open this page in an incognito window to see if the app is reading the ESPN API correctly!](",errortext(),")")))
-                                         )))
-  
-  output$details<-renderDT(details(),rownames=FALSE,options=list(scrollX=TRUE,pageLength=25))
-  
-  output$summary_week<-renderDT(summary_week(),rownames=FALSE,options=list(scrollX=TRUE,lengthChange=FALSE,pageLength=50))
-  
-  output$summary_season<-renderDT(summary_season(),rownames=FALSE,options=list(scrollX=TRUE,lengthChange=FALSE,pageLength=50))
-  
-  output$downloadseason<-downloadHandler(
-    filename=function(){paste0('Potential Points:',leaguename(),'.csv')},
-    content=function(file){write.csv(summary_season(),file,row.names=FALSE)}
-  )
-  output$downloadweek<-downloadHandler(
-    filename=function(){paste0('Potential Points:',leaguename(),'.csv')},
-    content=function(file){write.csv(summary_week(),file,row.names=FALSE)}
+    
   )
   
+  #### Display Potential Points ####
+  
+  output$details <- renderDT(
+    pp_details(),
+    rownames = FALSE,
+    options = list(
+      scrollX = TRUE, 
+      pageLength = 25))
+  
+  output$summary_week <- renderDT(
+    summary_week(),
+    rownames = FALSE,
+    options = list(
+      scrollX = TRUE, 
+      pageLength = 25)
+  )
+  
+  output$summary_season <- renderDT(
+    summary_season(),
+    rownames = FALSE,
+    options = list(
+      scrollX = TRUE,
+      pageLength = 25)
+  )
+  
+  output$download_data <- downloadHandler(
+    filename = function(){paste0('PotentialPoints_',league_info()$league_name,'.xlsx')},
+    content = function(file){
+      write_xlsx(
+        list(
+          league_info = 
+            enframe(league_info()) %>% 
+            filter(name!='users') %>% 
+            mutate(value = as.character(value)),
+          summary_season = summary_season(),
+          summary_week = summary_week(),
+          details = pp_details()
+        ),
+        path = file)
+      
+    }
+  )
+
+  observeEvent(
+    input$debug_please,
+    showModal(
+      modalDialog(
+        title = "Having trouble?",
+        "Open this page in an incognito window to see if the app is reading the ESPN API correctly!",
+        br(),
+        glue("https://fantasy.espn.com/apis/v3/games/ffl/seasons/{input$year_select}/segments/0/leagues/{input$league_id}?view=mSettings"),
+        easyClose = TRUE,
+        size = 'l'
+      )
+    )
+  )
 }
 
 shinyApp(ui, server)
