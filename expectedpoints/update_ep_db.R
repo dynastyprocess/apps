@@ -13,31 +13,41 @@ library(DBI)
 library(here)
 library(curl)
 
-
-nflfastR::update_db()
-
-con <- dbConnect(RSQLite::SQLite(), "pbp_db")
-
-df <- dbSendQuery(con, "select * from nflfastR_pbp")
-
-df_fetch <- dbFetch(df)
-
-pbp <- df_fetch
-
-dbDisconnect(con)
-
-rosters <- read_csv("https://raw.githubusercontent.com/samhoppen/NFL_Positions/master/nfl_positions_2011_2020.csv")
+# nflfastR::update_db()
+# con <- dbConnect(RSQLite::SQLite(), "pbp_db")
+# df <- dbSendQuery(con, "select * from nflfastR_pbp")
+# df_fetch <- dbFetch(df)
+# pbp <- df_fetch
+# dbDisconnect(con)
+# rosters2 <- read_csv("https://raw.githubusercontent.com/samhoppen/NFL_Positions/master/nfl_positions_2011_2020.csv")
 
 # Raw Data ----------------------------------------------------------------
 set.seed(1234)
-memory.limit(size=30000)
+memory.limit(size=300000000)
 doParallel::registerDoParallel()
+
+con <- DBI::dbConnect(odbc::odbc(), "dynastyprocess")
+
+rosters <- dbGetQuery(con, "select season, case when position in ('HB','FB') then 'RB' else position end as 'position',
+                                   full_name, gsis_id, birth_date
+                            from nflfastr_rosters_current
+                            where position in ('QB','RB','FB','WR','TE','HB')
+                            union
+                            select season, case when position in ('HB','FB') then 'RB' else position end as 'position',
+                                   full_name, gsis_id, birth_date
+                            from nflfastr_rosters_historical
+                            where position in ('QB','RB','FB','WR','TE','HB')")
+
+pbp <- dbGetQuery(con, "select season, week, game_date, game_id, posteam, play_type, `desc`, yards_gained, rusher_player_id, two_point_conv_result, two_point_attempt, yardline_100, down, roof, temp, wind, rush_touchdown, fumble_lost, run_gap, run_location, rush_attempt, receiver_player_id, passer_player_id, sack, air_yards, complete_pass, pass_location, pass_touchdown, qb_scramble, shotgun from nflfastr_pbp")
+
+pbp <- nflfastR::decode_player_ids(pbp)
+
+dbDisconnect(con)
 
 setwd(here())
 
 load(file = "new_models.rda")
-#rosters <- read_parquet("rosters_1999_2019.pdata")
-#pbp <- read_parquet("data/pbp_data/pbp_reg_post_1999_2019.pdata")
+
 
 # Functions ---------------------------------------------------------------
 get_age <- function(from_date,to_date = lubridate::now(),dec = FALSE){
@@ -61,17 +71,18 @@ cpoe_func <- function(x,y){
 # Rush Data ---------------------------------------------------------------
 rushdf <- pbp %>%
   left_join(dplyr::select(rosters,
-                          player_id,
-                          rusher_gsis_name = full_player_name,
-                          #rusher_gsis_bday = Birth_date,
+                          season,
+                          gsis_id,
+                          rusher_gsis_name = full_name,
+                          rusher_gsis_bday = birth_date,
                           rusher_gsis_pos = position),
-            by = c("rusher_player_id" = "player_id")) %>%
+            by = c("rusher_player_id" = "gsis_id", "season")) %>%
   filter(play_type == "run",
          !grepl("kneel",desc),
          !is.na(yards_gained),
-         #!is.na(rusher_gsis_pos),
+         !is.na(rusher_gsis_pos),
          !is.na(game_id)) %>%
-  mutate(#rusher_age = get_age(rusher_gsis_bday, game_date, dec = TRUE),
+  mutate(rusher_age = get_age(rusher_gsis_bday, game_date, dec = TRUE),
          two_point_converted = case_when(two_point_conv_result == "success" ~ 1,
                                          is.na(two_point_conv_result) & grepl("ATTEMPT SUCCEEDS", desc) ~ 1,
                                          TRUE ~ 0),
@@ -90,7 +101,6 @@ rushdf <- pbp %>%
          run_gap_dir = paste0(run_location,run_gap),
          run_gap_dir = case_when(run_gap_dir %in% c("leftcenter","rightcenter","middleend") | run_location == "unknown" ~ "unknown",
                                  TRUE ~ run_gap_dir),
-         #season = as.factor(season),
          game_id = as.factor(game_id)) %>%
   
   arrange(rusher_player_id, game_id) %>%
@@ -105,30 +115,32 @@ rushdf <- pbp %>%
   mutate(eRushTD = ifelse(eRushTD < 0, 0, eRushTD)) %>%
   cbind(predict(RushFPmod, new_data= .)) %>%
   rename(eRushFP = .pred) %>%
-  select(season, week, posteam, game_id, rusher_player_id, rusher_gsis_name, rusher_gsis_pos, 
+  select(season, week, posteam, game_id, rusher_player_id, rusher_gsis_name, rusher_gsis_pos, rusher_age, 
          yards_gained, rushFP, rush_touchdown, two_point_converted, eRushYD, eRushTD, eRushFP)
 
 # Pass Data ---------------------------------------------------------------
 passdf <- pbp %>% 
   left_join(dplyr::select(rosters,
-                          player_id,
-                          receiver_gsis_name = full_player_name,
-                          #receiver_gsis_bday = Birth_date,
+                          season,
+                          gsis_id,
+                          receiver_gsis_name = full_name,
+                          receiver_gsis_bday = birth_date,
                           receiver_gsis_pos = position),
-            by = c("receiver_player_id" = "player_id")) %>%
+            by = c("receiver_player_id" = "gsis_id", "season")) %>%
   left_join(dplyr::select(rosters,
-                          player_id,
-                          passer_gsis_name = full_player_name,
-                          #passer_gsis_bday = Birth_date,
+                          season,
+                          gsis_id,
+                          passer_gsis_name = full_name,
+                          passer_gsis_bday = birth_date,
                           passer_gsis_pos = position),
-            by = c("passer_player_id" = "player_id")) %>%
+            by = c("passer_player_id" = "gsis_id", "season")) %>%
   filter(play_type == "pass",
          sack == 0,
          !is.na(receiver_gsis_pos),
          #!is.na(passer_gsis_pos),
          !is.na(game_id)) %>%
-  mutate(#passer_age = get_age(passer_gsis_bday, game_date, dec = TRUE),
-         #receiver_age = get_age(receiver_gsis_bday, game_date, dec = TRUE),
+  mutate(passer_age = get_age(passer_gsis_bday, game_date, dec = TRUE),
+         receiver_age = get_age(receiver_gsis_bday, game_date, dec = TRUE),
          two_point_converted = case_when(two_point_conv_result == "success" ~ 1,
                                          is.na(two_point_conv_result) & grepl("ATTEMPT SUCCEEDS", desc) ~ 1,
                                          TRUE ~ 0),
@@ -152,7 +164,6 @@ passdf <- pbp %>%
          air_is_zero = ifelse(air_yards==0,1,0),
          abs_air_yards = abs(air_yards),
          targetline = yardline_100 - air_yards,
-         #season = as.factor(season),
          game_id = as.factor(game_id)) %>%
   
   arrange(passer_player_id, game_id, play_id) %>%
@@ -176,35 +187,36 @@ passdf <- pbp %>%
   rename(eRecFP = .pred) %>%
   cbind(predict(PassFPmod, new_data= .)) %>%
   rename(ePassFP = .pred) %>%
-  select(season, week, posteam, game_id, receiver_player_id, receiver_gsis_name, receiver_gsis_pos, passer_player_id, passer_gsis_name, passer_gsis_pos,
+  select(season, week, posteam, game_id, receiver_player_id, receiver_gsis_name, receiver_gsis_pos, receiver_age,
+         passer_player_id, passer_gsis_name, passer_gsis_pos, passer_age,
          passFP, recFP, yards_gained, pass_touchdown, air_yards, complete_pass, eRec, eRecYD = eRecYDs, eRecTD = eRecTDs, eRecFP, ePassFP)
 
 rm(pbp)
 
 # Combine Rushing and Passing ---------------------------------------------
 rushGame <- rushdf %>%
-  group_by(season, posteam, week, game_id, rusher_player_id, rusher_gsis_name, rusher_gsis_pos) %>%
+  group_by(season, posteam, week, game_id, rusher_player_id, rusher_gsis_name, rusher_gsis_pos, rusher_age) %>%
   summarise(across(where(is.numeric), sum, na.rm = TRUE),
             rush_att = n()) %>%
   ungroup() %>%
-  select(season, posteam, week, game_id, rusher_player_id, rusher_gsis_name, rusher_gsis_pos,
+  select(season, posteam, week, game_id, rusher_player_id, rusher_gsis_name, rusher_gsis_pos, rusher_age,
          rush_fp = rushFP, rush_yd = yards_gained, rush_att, rush_td = rush_touchdown, rush_yd_x = eRushYD, rush_td_x = eRushTD, rush_fp_x = eRushFP)
 
 recGame <- passdf %>%
-  group_by(season, posteam, week, game_id, receiver_player_id, receiver_gsis_name, receiver_gsis_pos) %>%
+  group_by(season, posteam, week, game_id, receiver_player_id, receiver_gsis_name, receiver_gsis_pos, receiver_age) %>%
   summarise(across(where(is.numeric), sum, na.rm = TRUE),
             rec_tar = n()) %>%
   ungroup() %>%
-  select(season, posteam, week, game_id, receiver_player_id, receiver_gsis_name, receiver_gsis_pos,
+  select(season, posteam, week, game_id, receiver_player_id, receiver_gsis_name, receiver_gsis_pos, receiver_age,
          rec_fp = recFP, rec_yd = yards_gained, rec_td = pass_touchdown, rec_ay = air_yards, rec_tar, rec_comp = complete_pass, 
          rec_comp_x = eRec, rec_yd_x = eRecYD, rec_fp_x = eRecFP, rec_td_x = eRecTD)
 
 passGame <- passdf %>%
-  group_by(season, posteam, week, game_id, passer_player_id, passer_gsis_name, passer_gsis_pos) %>%
+  group_by(season, posteam, week, game_id, passer_player_id, passer_gsis_name, passer_gsis_pos, passer_age) %>%
   summarise(across(where(is.numeric), sum, na.rm = TRUE),
             pass_att = n()) %>%
   ungroup() %>%
-  select(season, posteam, week, game_id, passer_player_id, passer_gsis_name, passer_gsis_pos,
+  select(season, posteam, week, game_id, passer_player_id, passer_gsis_name, passer_gsis_pos, passer_age,
          pass_att, pass_fp = passFP, pass_yd = yards_gained, pass_td = pass_touchdown, pass_comp = complete_pass, pass_ay = air_yards,
          pass_comp_x = eRec, pass_yd_x = eRecYD, pass_td_x = eRecTD, pass_fp_x = ePassFP)
 
@@ -214,10 +226,7 @@ all_games <-
          combo_name = ifelse(is.na(rusher_gsis_name), receiver_gsis_name, rusher_gsis_name),
          combo_pos = ifelse(is.na(rusher_gsis_pos), receiver_gsis_pos, rusher_gsis_pos)) %>%
   full_join(passGame, by=c("game_id", "season", "combo_id" = "passer_player_id", "week", "posteam")) %>%
-  #rename(game_id = game_id.x, season = season.x, week = week.x, posteam = posteam.x) %>% 
-  #select(-game_id.y, -season.y, -week.y, -posteam.y) %>% 
-  mutate(#player_id = ifelse(is.na(combo_id), passer_player_id, combo_id),
-         player_id = combo_id,
+  mutate(player_id = combo_id,
          gsis_name = ifelse(is.na(combo_name), passer_gsis_name, combo_name),
          gsis_pos = ifelse(is.na(combo_pos), passer_gsis_pos, combo_pos),
          proxy_pass_fp = ifelse(gsis_pos == "QB", pass_fp, rec_fp),
@@ -315,7 +324,6 @@ all_games <-
                           TRUE ~ posteam),
          week_season = paste0("Week ", week, ', ', season)) %>% 
   group_by(season, week, week_season) %>%
-  #arrange(season, week) %>%
   mutate(week_season_num = cur_group_id()) %>%
   ungroup() %>%
   select(Season = season,
@@ -329,22 +337,4 @@ all_games <-
          Pos = gsis_pos,
          where(is.numeric))
 
-# skim(all_games)
-# 
-# all_games %>% group_by(week_season) %>% tally()
-# 
-# temp <- pbp %>% group_by(season, posteam) %>% tally(game_id)
-
-
 write_parquet(all_games, "ep_1999_2019.pdata")
-
-
-# temp <- df_fetch %>% 
-#   filter((home_team == "CHI" & home_score > away_score & home_wp < 0.02 ) | (away_team == "CHI" & away_score > home_score & away_wp < 0.02)) %>% 
-#   filter(play_type != "kickoff") %>% 
-#   select(game_id) %>% 
-#   unique()
-#   
-# 
-# temp <- df_fetch %>% 
-#   filter(game_id == "2010_02_CHI_DAL")
