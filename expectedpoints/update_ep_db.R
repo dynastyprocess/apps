@@ -221,9 +221,11 @@ all_games <-
   full_join(rushGame, recGame,  by=c("game_id", "season", "rusher_player_id" = "receiver_player_id", "week", "posteam")) %>%
   mutate(combo_id = ifelse(is.na(rusher_player_id), receiver_player_id, rusher_player_id),
          combo_name = ifelse(is.na(rusher_gsis_name), receiver_gsis_name, rusher_gsis_name),
-         combo_pos = ifelse(is.na(rusher_gsis_pos), receiver_gsis_pos, rusher_gsis_pos)) %>%
+         combo_pos = ifelse(is.na(rusher_gsis_pos), receiver_gsis_pos, rusher_gsis_pos),
+         combo_age = ifelse(is.na(rusher_age), receiver_age, rusher_age)) %>%
   full_join(passGame, by=c("game_id", "season", "combo_id" = "passer_player_id", "week", "posteam")) %>%
   mutate(player_id = combo_id,
+         player_age = ifelse(is.na(combo_age), passer_age, combo_age),
          gsis_name = ifelse(is.na(combo_name), passer_gsis_name, combo_name),
          gsis_pos = ifelse(is.na(combo_pos), passer_gsis_pos, combo_pos),
          proxy_pass_fp = ifelse(gsis_pos == "QB", pass_fp, rec_fp),
@@ -317,7 +319,6 @@ all_games <-
                           posteam == "SAN" ~ "LAC",
                           posteam == "SD" ~ "LAC",
                           posteam == "SL" ~ "LAR",
-                          
                           TRUE ~ posteam),
          week_season = paste0("Week ", week, ', ', season)) %>% 
   group_by(season, week, week_season) %>%
@@ -333,6 +334,10 @@ all_games <-
          Name = gsis_name,
          Pos = gsis_pos,
          where(is.numeric)) %>% 
-  select(-season, -week)
+  select(-season, -week, -contains("proxy"), -contains("combo"), -rusher_age, -receiver_age, -passer_age)
 
 write_parquet(all_games, "ep_1999_2019.pdata")
+
+# con <- DBI::dbConnect(odbc::odbc(), "dynastyprocess")
+# DBI::dbRemoveTable(con, "dp_expectedpoints")
+# DBI::dbWriteTable(con, "dp_expectedpoints", all_games)

@@ -58,7 +58,7 @@ colClean <- function(x) {str_to_upper(gsub("_", " ", colnames(x), fixed = TRUE))
 
 setwd(here::here())
 epdata <- read_parquet("ep_1999_2019.pdata") %>% 
-  filter(season >= 2011)
+  filter(Season >= 2011)
 vars <- epdata %>% select(contains("pass"), contains("rush"), contains("rec"), contains("total"), -contains("team"), -contains("proxy")) %>%
   colClean() %>% sort()
 week_seasons <- epdata %>% arrange(Season, Week) %>% distinct(week_season) %>% as_vector()
