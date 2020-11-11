@@ -346,7 +346,7 @@ server <- function(input, output, session) {
   
   output$teamA_valuetable <- renderDT({
     teamA_values() %>%
-      datatable(class = "compact row-border",
+      datatable(class = "valuetable compact row-border",
                 container = value_container,
                 selection = 'none',
                 options = list(searching = FALSE,
@@ -360,7 +360,7 @@ server <- function(input, output, session) {
   })
   output$teamB_valuetable <- renderDT({
     teamB_values() %>%
-      datatable(class = "compact row-border",
+      datatable(class = "valuetable compact row-border",
                 container = value_container,
                 selection = 'none',
                 options = list(searching = FALSE,
@@ -390,7 +390,7 @@ server <- function(input, output, session) {
     
     tradebalancer_table <- values() %>%
       filter(Value<=(trade_diff*1.05),Value>=(trade_diff*0.95)) %>% 
-      datatable(class = "compact row-border",
+      datatable(class = "valuetable compact row-border",
                 container = value_container,
                 selection = 'none',
                 options = list(searching = FALSE,
@@ -446,7 +446,7 @@ server <- function(input, output, session) {
   # values tab ----
   output$values_table <- renderDT({
     values() %>%
-      datatable(class = "compact row-border",
+      datatable(class = "valuetable compact row-border",
                 container = value_container,
                 selection = 'none',
                 options = list(searching = FALSE,

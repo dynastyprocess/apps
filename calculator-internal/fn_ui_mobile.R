@@ -5,7 +5,10 @@
 addcss_transparentDT <- function(){
   tags$head(tags$style(
     HTML(
-      "table td, table tr, table th{background: transparent !important;}"
+      "
+      table td, table tr, table th{background: transparent !important;}
+      .valuetable {color: #ffffff}
+      "
     )
   ))
 }
