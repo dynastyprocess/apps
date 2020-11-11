@@ -143,7 +143,7 @@ passdf <- pbp %>%
                                          TRUE ~ 0),
          air_yards = ifelse(two_point_attempt == 1, yardline_100, air_yards),
          air_yards = ifelse(season < 2006, NA, air_yards),
-         yards_gained = ifelse(season < 2006, NA, yards_gained),
+         #yards_gained = ifelse(season < 2006, NA, yards_gained),
          down = ifelse(two_point_attempt == 1, 5, down),
          complete_pass = ifelse(two_point_attempt == 1 & grepl("is complete", desc), 1, complete_pass),
          yards_gained = ifelse(two_point_attempt == 1 & two_point_converted == 1, yardline_100, yards_gained),
@@ -341,3 +341,4 @@ write_parquet(all_games, "ep_1999_2019.pdata")
 # con <- DBI::dbConnect(odbc::odbc(), "dynastyprocess")
 # DBI::dbRemoveTable(con, "dp_expectedpoints")
 # DBI::dbWriteTable(con, "dp_expectedpoints", all_games)
+# DBI::dbDisconnect(con)
