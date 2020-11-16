@@ -11,14 +11,16 @@ library(joker)
 # Generate Calculator Values Table ----
 ## Main Function (... is passed to the final select function)----
 
-gen_df_values <- function(players_raw,picks_raw,
-                          qb_type,league_size,value_factor,rookie_optimism,draft_type,future_factor, ...){
+gen_df_values <- function(players_raw, picks_raw,
+                          qb_type, league_size, value_factor, rookie_optimism, 
+                          draft_type, future_factor, ...){
   
   pick_values <- picks_raw %>% 
     .calc_currentpicks(rookie_optimism,qb_type) %>% 
     .label_currentpicks(parse_number(league_size)) %>% 
     .calculate_value(value_factor) %>% 
     .add_futurepicks(future_factor,parse_number(league_size)) %>% 
+    .filter_rookiepicks() %>% 
     select(player = pick_label,value)
   
   players_raw %>%  
@@ -75,6 +77,16 @@ gen_df_values <- function(players_raw,picks_raw,
 
 .add_futurepicks <- function(df,futurerookie_factor,leaguesize){
   fr_f <- futurerookie_factor/100
+  
+  today_month <- month(Sys.Date())
+  
+  n1_factor <- case_when(today_month < 9 ~ fr_f,
+                         today_month <=10 ~ (1-fr_f)*0.25 + fr_f,
+                         today_month <=11 ~ (1-fr_f)*0.50 + fr_f,
+                         today_month <=12 ~ (1-fr_f)*0.75 + fr_f)
+  
+  n2_factor <- fr_f
+  
   l_s <- leaguesize + 0.001
   
   n1 <- df %>%
@@ -89,27 +101,45 @@ gen_df_values <- function(players_raw,picks_raw,
   
   n1_eml <- n1 %>% 
     group_by(season,rookie_round,eml) %>% 
-    summarise(value = mean(value)*fr_f) %>% 
+    summarise(value = mean(value)*n1_factor) %>% 
     ungroup() %>% 
     mutate(pick_label = paste(season,eml,rookie_round))
   
   n1_summary <- n1 %>% 
     group_by(season,rookie_round) %>% 
-    summarise(value = mean(value)*fr_f) %>% 
+    summarise(value = mean(value)*n1_factor) %>% 
     ungroup() %>% 
     mutate(pick_label = paste(season,rookie_round))
   
   n2_summary <- n1_summary %>% 
     mutate(season = season + 1,
-           value = value*fr_f,
+           value = value*n2_factor,
            pick_label = paste(season,rookie_round))
+  
+  n3_summary <- n2_summary %>% 
+    mutate(season = season + 1,
+           value = value * n2_factor,
+           pick_label = paste(season, rookie_round))
   
   df %>% 
     mutate(rookie_round = as.character(rookie_round)) %>% 
-    bind_rows(n1_eml,n1_summary,n2_summary) %>% 
+    bind_rows(n1_eml,n1_summary,n2_summary, n3_summary) %>% 
     mutate(position = "PICK",
            value = round(value)) %>% 
     arrange(desc(value))
+}
+
+.filter_rookiepicks <- function(df,today_date = Sys.Date()){
+  today_month <- month(today_date)
+  
+  today_year <- year(today_date) %>% as.character()
+  
+  if(today_month > 8){
+    df <- df %>% 
+      filter(str_detect(pick_label,today_year,negate = TRUE))
+  }
+  
+  return(df)
 }
 
 .label_displaymode <- function(df,displaymode,leaguesize){
