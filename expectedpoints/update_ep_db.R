@@ -38,8 +38,6 @@ rosters <- dbGetQuery(con, "select season, case when position in ('HB','FB') the
                             from nflfastr_rosters_historical
                             where gsis_id is not NULL")
 
-#where position in ('QB','RB','FB','WR','TE','HB')
-
 pbp <- dbGetQuery(con, "select season, week, game_date, game_id, posteam, play_type, `desc`, yards_gained, rusher_player_id, two_point_conv_result, two_point_attempt, yardline_100, down, roof, temp, wind, rush_touchdown, fumble_lost, run_gap, run_location, rush_attempt, receiver_player_id, passer_player_id, sack, air_yards, play_id, qb_hit, pass_attempt, yards_after_catch, complete_pass, interception, pass_location, pass_touchdown, qb_scramble, shotgun, half_seconds_remaining, wp from nflfastr_pbp")
 
 pbp <- nflfastR::decode_player_ids(pbp)
@@ -338,7 +336,7 @@ all_games <-
 
 write_parquet(all_games, "ep_1999_2019.pdata")
 
-# con <- DBI::dbConnect(odbc::odbc(), "dynastyprocess")
-# DBI::dbRemoveTable(con, "dp_expectedpoints")
-# DBI::dbWriteTable(con, "dp_expectedpoints", all_games)
-# DBI::dbDisconnect(con)
+con <- DBI::dbConnect(odbc::odbc(), "dynastyprocess")
+DBI::dbRemoveTable(con, "dp_expectedpoints")
+DBI::dbWriteTable(con, "dp_expectedpoints", all_games)
+DBI::dbDisconnect(con)
