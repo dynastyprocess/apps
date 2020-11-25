@@ -360,6 +360,8 @@ all_games <-
 write_parquet(all_games, "ep_1999_2019.pdata")
 
 con <- DBI::dbConnect(odbc::odbc(), "dynastyprocess")
-DBI::ddbExecute(con, "truncate dp_expectedpoints")
-DBI::dbWriteTable(con, "dp_expectedpoints", all_games)
+DBI::dbExecute(con, "truncate table dp_expectedpoints")
+DBI::dbAppendTable(con, "dp_expectedpoints", all_games)
+#DBI::dbWriteTable(con, "dp_expectedpoints", all_games)
+dbGetQuery(con, "select count(*) from dp_expectedpoints")
 DBI::dbDisconnect(con)
