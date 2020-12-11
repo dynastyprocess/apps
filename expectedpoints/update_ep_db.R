@@ -204,7 +204,8 @@ passdf <- pbp %>%
   select(season, week, posteam, game_id,
          receiver_player_id, receiver_sportradar_id, receiver_gsis_name, receiver_gsis_pos, receiver_age,
          passer_player_id, passer_sportradar_id, passer_gsis_name, passer_gsis_pos, passer_age,
-         passFP, recFP, yards_gained, pass_touchdown, air_yards, complete_pass, eRec, eRecYD = eRecYDs, eRecTD = eRecTDs, eRecFP, ePassFP)
+         passFP, recFP, yards_gained, yards_after_catch, pass_touchdown, air_yards, complete_pass,
+         eRec, eRecYD = eRecYDs, eRecTD = eRecTDs, eRecFP, ePassFP)
 
 rm(pbp)
 
@@ -215,16 +216,18 @@ rushGame <- rushdf %>%
             rush_att = n()) %>%
   ungroup() %>%
   select(season, posteam, week, game_id, rusher_player_id, rusher_sportradar_id, rusher_gsis_name, rusher_gsis_pos, rusher_age,
-         rush_fp = rushFP, rush_yd = yards_gained, rush_att, rush_td = rush_touchdown, rush_yd_x = eRushYD, rush_td_x = eRushTD, rush_fp_x = eRushFP)
+         rush_fp = rushFP, rush_yd = yards_gained, rush_att, rush_td = rush_touchdown,
+         rush_yd_x = eRushYD, rush_td_x = eRushTD, rush_fp_x = eRushFP)
 
 recGame <- passdf %>%
-  group_by(season, posteam, week, game_id, receiver_player_id, receiver_sportradar_id, receiver_gsis_name, receiver_gsis_pos, receiver_age) %>%
+  group_by(season, posteam, week, game_id, receiver_player_id, receiver_sportradar_id,
+           receiver_gsis_name, receiver_gsis_pos, receiver_age) %>%
   summarise(across(where(is.numeric), sum, na.rm = TRUE),
             rec_tar = n()) %>%
   ungroup() %>%
   select(season, posteam, week, game_id, receiver_player_id, receiver_sportradar_id, receiver_gsis_name, receiver_gsis_pos, receiver_age,
-         rec_fp = recFP, rec_yd = yards_gained, rec_td = pass_touchdown, rec_ay = air_yards, rec_tar, rec_comp = complete_pass, 
-         rec_comp_x = eRec, rec_yd_x = eRecYD, rec_fp_x = eRecFP, rec_td_x = eRecTD)
+         rec_fp = recFP, rec_yd = yards_gained, rec_td = pass_touchdown, rec_ay = air_yards, rec_tar, rec_yac = yards_after_catch,
+         rec_comp = complete_pass, rec_comp_x = eRec, rec_yd_x = eRecYD, rec_fp_x = eRecFP, rec_td_x = eRecTD)
 
 passGame <- passdf %>%
   group_by(season, posteam, week, game_id, passer_player_id, passer_sportradar_id, passer_gsis_name, passer_gsis_pos, passer_age) %>%
@@ -232,8 +235,8 @@ passGame <- passdf %>%
             pass_att = n()) %>%
   ungroup() %>%
   select(season, posteam, week, game_id, passer_player_id, passer_sportradar_id, passer_gsis_name, passer_gsis_pos, passer_age,
-         pass_att, pass_fp = passFP, pass_yd = yards_gained, pass_td = pass_touchdown, pass_comp = complete_pass, pass_ay = air_yards,
-         pass_comp_x = eRec, pass_yd_x = eRecYD, pass_td_x = eRecTD, pass_fp_x = ePassFP)
+         pass_att, pass_fp = passFP, pass_yd = yards_gained, pass_td = pass_touchdown, pass_yac = yards_after_catch,
+         pass_comp = complete_pass, pass_ay = air_yards, pass_comp_x = eRec, pass_yd_x = eRecYD, pass_td_x = eRecTD, pass_fp_x = ePassFP)
 
 all_games <- 
   full_join(rushGame, recGame,  by=c("game_id", "season", "rusher_player_id" = "receiver_player_id", "week", "posteam")) %>%
