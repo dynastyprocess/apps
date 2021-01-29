@@ -587,6 +587,7 @@ server <- function(input, output, session) {
         columnGroups = colGroupSwitch,
         bordered = TRUE,
         highlight = TRUE,
+        filterable = TRUE,
         #searchable = TRUE,
         defaultPageSize = 25,
         showPageSizeOptions = TRUE,
