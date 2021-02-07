@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   
   # Plotting
   library(gt)
+  library(RColorBrewer)
   # library(ggimage)
   # library(grid)
   # library(ggrepel)
@@ -158,9 +159,9 @@ server <- function(input, output, session) {
                     .fns = ~round(.x,1)),
              dynasty_value = avg_fp_above_baseline_y1 +
                0.8 * avg_fp_above_baseline_y2 +
-               0.64 * avg_fp_above_baseline_y3 +
-               0.512 * avg_fp_above_baseline_y4 +
-               0.4096 * avg_fp_above_baseline_y5,
+               0.64 * avg_fp_above_baseline_y3,
+               # 0.512 * avg_fp_above_baseline_y4 +
+               # 0.4096 * avg_fp_above_baseline_y5,
              rank = row_number(-dynasty_value)) %>% 
       arrange(-dynasty_value)
   })
@@ -188,7 +189,7 @@ server <- function(input, output, session) {
         avg_fp_above_baseline_y5 = "5",
         dynasty_value = "Weighted FPOB") %>% 
       tab_spanner(
-        label = "Fantasy Points Above Top 36 Baseline",
+        label = "Fantasy Points Above Baseline Year + N",
         columns = 
           vars(
             avg_fp_above_baseline_y0,
@@ -204,101 +205,273 @@ server <- function(input, output, session) {
           palette = 'PRGn',
           #brewer.pal(12,'PRGn')[3:8],
           domain = NULL))
-      
   )
   
   player_selected <- reactive({
     foresight_comps %>% 
       filter(main_name == input$select_player,
              main_season == input$select_season) %>%
-      select(-contains("main"),
-             -c(comp_gsis_id,
-                comp_player,
-                sim_score,
-                sim_rank,
-                Pos,
-                avg_fp_above_baseline_y0,
-                avg_fp_above_baseline_y2,
-                avg_fp_above_baseline_y3,
-                avg_fp_above_baseline_y4,
-                avg_fp_above_baseline_y5)) %>% 
       arrange(-sim_score_adj)
   })
   
-  num_cols <- reactive({
-    player_selected() %>%
-    select(where(is.numeric) & !contains("draft")) %>%
-    colnames()
+  player_selected_pos <- reactive({
+    foresight_comps %>% 
+      filter(main_name == input$select_player,
+             main_season == input$select_season,
+             main_player == comp_player) %>%
+      pull(Pos)
   })
   
-  output$comp_table <- render_gt(
+  create_gt <- function(pos, df) {
     
-    player_selected() %>% 
-      gt() %>% 
-      data_color(
-        columns = num_cols(),
-        colors = scales::col_factor(
-          palette = 'PRGn',
-          #brewer.pal(12,'PRGn')[3:8],
-          domain = NULL)) %>%
-      # No Decimals
-      fmt_number(
-        columns = c("sim_score_adj"),
-        decimals = 0) %>%
-      #1 Decimal
-      fmt_number(
-        columns = c("player_age_eos",
-                    "fpob_roll16",
-                    "rec_yptpa_roll16",
-                    "rec_comp_x_breakout16",
-                    "total_fp_x_career",
-                    "total_yd_diff_career",
-                    "total_td_career",
-                    "total_yd_team_x_career",
-                    "avg_fp_above_baseline_y1"),
-        decimals = 1) %>%
-      #Percent
-      fmt_percent(
-        columns = c("rush_fp_x_share_breakout16",
-                    "rush_fp_share_season"),
-        decimals = 1) %>% 
-      cols_label(
-        comp_name = "Comparison",
-        comp_season = "Season",
-        ovr_draft_pick = "Pick",
+    if(pos == "RB") {
+      df %>% 
+      select(comp_name,
+             comp_season,
+             ovr_draft_pick,
+             sim_score_adj,
+             avg_fp_above_baseline_y1,
+             player_age_eos,
+             fpob_roll16,
+             rec_yptpa_roll16,
+             rush_fp_x_share_breakout16,
+             rec_comp_x_breakout16,
+             total_fp_x_career,
+             games_above_base_todate,
+             total_yd_diff_career,
+             total_td_career,
+             rec_yac_rate_career,
+             total_yd_team_x_career,
+             rush_fp_share_season,
+             rec_fp_share_season) %>%
+        gt() %>% 
+        data_color(
+          columns = vars(
+            avg_fp_above_baseline_y1,
+            player_age_eos,
+            fpob_roll16,
+            rec_yptpa_roll16,
+            rush_fp_x_share_breakout16,
+            rec_comp_x_breakout16,
+            total_fp_x_career,
+            games_above_base_todate,
+            total_yd_diff_career,
+            total_td_career,
+            rec_yac_rate_career,
+            total_yd_team_x_career,
+            rush_fp_share_season,
+            rec_fp_share_season),
+          colors = scales::col_factor(
+            palette =  brewer.pal(12,'PRGn')[3:8], #='PRGn',
+            domain = NULL)) %>%
+        # No Decimals
+        fmt_number(
+          columns = c("sim_score_adj"),
+          decimals = 0) %>%
+        #1 Decimal
+        fmt_number(
+          columns = c("player_age_eos",
+                      "fpob_roll16",
+                      "rec_yptpa_roll16",
+                      "rec_comp_x_breakout16",
+                      "total_fp_x_career",
+                      "total_yd_diff_career",
+                      "total_td_career",
+                      "total_yd_team_x_career",
+                      "avg_fp_above_baseline_y1"),
+          decimals = 1) %>%
+        #Percent
+        fmt_percent(
+          columns = c("rush_fp_x_share_breakout16",
+                      "rush_fp_share_season",
+                      "rec_fp_share_season",
+                      "rec_yac_rate_career"),
+          decimals = 1) %>% 
+        cols_label(
+          comp_name = "Comparison",
+          comp_season = "Season",
+          ovr_draft_pick = "Pick",
+          
+          sim_score_adj = "Sim Score",
+          avg_fp_above_baseline_y1 = "FPOB Y + 1",
+          player_age_eos = "Age",
 
-        sim_score_adj = "Sim Score",
-        avg_fp_above_baseline_y1 = "FPOB Y + 1",
-        player_age_eos = "Age",
-        season_games = "Games",
-        
-        fpob_roll16 = "FPOB 16",
-        rec_yptpa_roll16 = "YPTPA 16",
-        rush_fp_x_share_breakout16 = "EP Share B.O. 16",
-        rec_comp_x_breakout16 = "xRec B.O. 16",
-        rec_ay_roll16 = "Rec AY 16",
-        
-        total_fp_x_career = "EP/Game",
-        games_above_base_todate = "Games Above",
-        total_yd_diff_career = "Yards over xYards",
-        total_td_career = "TD/Game",
-        total_yd_team_x_career = "Team xYard",
-        
-        rush_fp_share_season = "Rush FP Share",
-        total_td_season = "Total TD Season") %>% 
-    tab_spanner(
-      label = "Career",
-      columns = 
-        vars(
-          total_fp_x_career,
-          games_above_base_todate,
-          total_yd_diff_career,
-          total_td_career,
-          total_yd_team_x_career
+          fpob_roll16 = "FPOB 16",
+          rec_yptpa_roll16 = "YPTPA 16",
+          rush_fp_x_share_breakout16 = "EP Share B.O. 16",
+          rec_comp_x_breakout16 = "xRec B.O. 16",
+          
+          total_fp_x_career = "EP/Game",
+          games_above_base_todate = "Games Above",
+          total_yd_diff_career = "Yards over xYards",
+          total_td_career = "TD/Game",
+          rec_yac_rate_career = "YAC Rate",
+          total_yd_team_x_career = "Team xYard",
+          
+          rush_fp_share_season = "Rush",
+          rec_fp_share_season = "Rec") %>% 
+        tab_spanner(
+          label = "Career",
+          columns = 
+            vars(
+              total_fp_x_career,
+              games_above_base_todate,
+              total_yd_diff_career,
+              total_td_career,
+              total_yd_team_x_career
+            )) %>% 
+        tab_spanner(
+          label = "Season FP Share",
+          columns = 
+            vars(
+              rush_fp_share_season,
+              rec_fp_share_season
+            )
         )
-    )
-  )
+    } else if (pos %in% c("WR","TE")) {
+      df %>% 
+        select(comp_name,
+               comp_season,
+               Pos,
+               ovr_draft_pick,
+               sim_score_adj,
+               avg_fp_above_baseline_y1,
+               player_age_eos,
+               fpob_roll16,
+               rec_comp_diff_roll16,
+               rec_adot_roll16,
+               rec_yac_rate_roll16,
+               rec_racr_roll16,
+               total_fp_x_breakout16,
+               rec_adot_breakout16,
+               rec_yac_rate_breakout16,
+               rec_racr_breakout16,
+               rec_yptpa_career,
+               rec_yac_career,
+               total_td_x_career,
+               total_fp_diff_career,
+               games_above_base_todate,
+               pass_fp_team_season,
+               rec_ay_share_season) %>%
+        gt() %>% 
+        data_color(
+          columns = vars(
+            avg_fp_above_baseline_y1,
+            player_age_eos,
+            fpob_roll16,
+            rec_comp_diff_roll16,
+            rec_adot_roll16,
+            rec_yac_rate_roll16,
+            rec_racr_roll16,
+            total_fp_x_breakout16,
+            rec_adot_breakout16,
+            rec_yac_rate_breakout16,
+            rec_racr_breakout16,
+            rec_yptpa_career,
+            rec_yac_career,
+            total_td_x_career,
+            total_fp_diff_career,
+            games_above_base_todate,
+            pass_fp_team_season,
+            rec_ay_share_season),
+          colors = scales::col_factor(
+            palette =  brewer.pal(12,'PRGn')[3:8], #='PRGn',
+            domain = NULL)) %>%
+        # No Decimals
+        fmt_number(
+          columns = vars(sim_score_adj),
+          decimals = 0) %>%
+        #1 Decimal
+        fmt_number(
+          columns = vars(player_age_eos,
+                         fpob_roll16,
+                         rec_comp_diff_roll16,
+                         rec_adot_roll16,
+                         rec_racr_roll16,
+                         total_fp_x_breakout16,
+                         rec_adot_breakout16,
+                         rec_racr_breakout16,
+                         rec_yptpa_career,
+                         rec_yac_career,
+                         total_td_x_career,
+                         total_fp_diff_career,
+                         pass_fp_team_season,
+                         avg_fp_above_baseline_y1),
+          decimals = 1) %>%
+        #Percent
+        fmt_percent(
+          columns = vars(rec_yac_rate_roll16,
+                         rec_yac_rate_breakout16,
+                         rec_ay_share_season),
+          decimals = 1) %>% 
+        cols_label(
+          comp_name = "Comparison",
+          comp_season = "Season",
+          Pos = "Pos",
+          ovr_draft_pick = "Pick",
+          
+          sim_score_adj = "Sim Score",
+          avg_fp_above_baseline_y1 = "FPOB Y + 1",
+          player_age_eos = "Age",
+
+          fpob_roll16 = "FPOB",
+          rec_comp_diff_roll16 = "Catches over xCatches",
+          rec_adot_roll16 = "aDOT",
+          rec_yac_rate_roll16 = "YAC Rate",
+          rec_racr_roll16 = "RACR",
+          
+          total_fp_x_breakout16 = "EP",
+          rec_adot_breakout16 = "aDOT",
+          rec_yac_rate_breakout16 = "YAC Rate",
+          rec_racr_breakout16 = "RACR",
+          
+          rec_yptpa_career = "Rec YPTPA",
+          rec_yac_career = "Rec YAC",
+          total_td_x_career = "Total xTD",
+          total_fp_diff_career = "Total FP over EP",
+          games_above_base_todate = "Games Above",
+          
+          pass_fp_team_season = "Pass FP",
+          rec_ay_share_season = "Rec AY%"
+          ) %>% 
+        tab_spanner(
+          label = "Career",
+          columns = 
+            vars(
+              rec_yptpa_career,
+              rec_yac_career,
+              total_td_x_career,
+              total_fp_diff_career,
+              games_above_base_todate
+            )) %>% 
+        tab_spanner(
+          label = "Breakout",
+          columns = 
+            vars(
+              total_fp_x_breakout16,
+              rec_adot_breakout16,
+              rec_yac_rate_breakout16,
+              rec_racr_breakout16
+            )) %>% 
+        tab_spanner(
+          label = "Rolling 16",
+          columns = 
+            vars(
+              fpob_roll16,
+              rec_comp_diff_roll16,
+              rec_adot_roll16,
+              rec_yac_rate_roll16,
+              rec_racr_roll16
+            )
+        )
+    }
+    
+  }
   
+  output$comp_table <- render_gt({
+    req(player_selected(), player_selected_pos()) 
+    create_gt(player_selected_pos(), player_selected())
+  })
 
 }
 
