@@ -1,44 +1,3 @@
-
-suppressPackageStartupMessages({
-
-  # Data import
-  library(ffscrapr)
-  library(httr)
-  library(jsonlite)
-  library(here)
-  library(arrow)
-
-  # library(DBI)
-  # library(RSQLite)
-
-  # Data manipulation
-  library(tidyverse)
-  library(janitor)
-  library(lubridate)
-  library(glue)
-  library(magrittr)
-  library(rlang)
-
-  # Plotting
-  # library(ggimage)
-  # library(grid)
-  # library(ggrepel)
-  # library(nflfastR)
-
-  # Shiny
-  library(shiny)
-  library(bs4Dash)
-  library(shinyWidgets)
-  library(reactable)
-  library(RColorBrewer)
-  library(waiter)
-  library(sever)
-
-  # Data output
-  library(writexl)
-
-})
-
 source("functions.R")
 options(dplyr.summarise.inform = FALSE)
 
@@ -116,6 +75,7 @@ server <- function(input, output, session) {
       waiter_teamselect$show()
       on.exit(waiter_teamselect$hide())
 
+      
       x <- tryCatch({
       user_leagues.ffscrapr(user_obj)
       },
@@ -123,7 +83,7 @@ server <- function(input, output, session) {
         showModal(
           modalDialog(
             title = "Oh no, ran into an error!",
-            glue("Couldn't load leagues for {user_obj$platform} user {user_obj$user_name}.")))
+            glue("Couldn't load leagues for {user_obj$platform} user {user_obj$user_name}. Error code: {e}")))
         return(NULL)
       })
 
