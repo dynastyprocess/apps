@@ -1,3 +1,6 @@
 [submodule "apps-draftcontest"]
 	path = apps-draftcontest
 	url = https://github.com/dynastyprocess/apps-draftcontest.git
+[submodule "apps-rankings"]
+	path = apps-rankings
+	url = git@github.com:dynastyprocess/apps-rankings.git
