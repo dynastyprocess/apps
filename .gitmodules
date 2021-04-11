@@ -1,0 +1,3 @@
+[submodule "apps-draftcontest"]
+	path = apps-draftcontest
+	url = https://github.com/dynastyprocess/apps-draftcontest.git
