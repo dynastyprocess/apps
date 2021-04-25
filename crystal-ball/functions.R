@@ -1,5 +1,46 @@
-library(bs4Dash)
-library(shiny)
+
+suppressPackageStartupMessages({
+  
+  # Data import
+  library(ffscrapr)
+  library(httr)
+  library(jsonlite)
+  library(here)
+  library(arrow)
+  
+  # library(DBI)
+  # library(RSQLite)
+  
+  # Data manipulation
+  library(tidyverse)
+  library(janitor)
+  library(lubridate)
+  library(glue)
+  library(magrittr)
+  library(rlang)
+  
+  # Plotting
+  # library(ggimage)
+  # library(grid)
+  # library(ggrepel)
+  # library(nflfastR)
+  
+  # Shiny
+  library(shiny)
+  library(bs4Dash)
+  library(shinyWidgets)
+  library(reactable)
+  library(RColorBrewer)
+  library(waiter)
+  library(sever)
+  
+  # Data output
+  library(writexl)
+  
+})
+
+# library(bs4Dash)
+# library(shiny)
 
 #### UI FUNCTIONS ####
 
@@ -192,7 +233,7 @@ team_select.espn <- function() {
 
 #### Load Data ####
 
-test_userobj <- function(){list(platform = "MFL",season = 2020, league_id = 54040, user_name = 'solarpool', password = 'M^#63tho')}
+test_userobj <- function(){list(platform = "MFL",season = 2020, league_id = 14943, user_name = 'solarpool', password = 'M^#63tho')}
 
 load_data.ffscrapr <- function(user_obj, loaded_data) {
   # browser()
