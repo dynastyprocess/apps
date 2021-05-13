@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   # Shiny
   library(shiny)
   library(shinyMobile) # tanho63/shinymobile
+  library(metathis)
   # library(echarts4r)
   library(DT)
   library(mobileCharts) # rinterface/mobileCharts
@@ -47,6 +48,17 @@ ui <- f7Page( # f7Page setup and Init Options ----
   ),
   f7TabLayout( # f7TabLayout ----
     use_sever(),
+    meta() %>%
+      meta_social(
+        title = "Trade Calculator - DynastyProcess.com",
+        description = "A dynasty trade calculator that you can customize for your strategy and league!",
+        url = "https://apps.dynastyprocess.com/calculator",
+        image = "https://github.com/dynastyprocess/graphics/raw/main/.dynastyprocess/logohexonly.png",
+        image_alt = "DynastyProcess logo",
+        twitter_creator = "@_TanHo",
+        twitter_card_type = "summary",
+        twitter_site = "@DynastyProcess"
+      ),
     addcss_transparentDT(),
     navbar = ui_header(),
     panels = ui_sidebar(),

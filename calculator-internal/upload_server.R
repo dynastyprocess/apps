@@ -51,4 +51,4 @@ upload_calculator_logs <- function(){
        body = glue("Successfully uploaded {nrow(df_upload)} rows of calculator log to server at {Sys.time()}"))
 }
 
-upload_calculator_logs()
+# upload_calculator_logs()
