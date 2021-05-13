@@ -145,65 +145,72 @@ server <- function(input, output, session) {
       filter(main_season == input$select_season_rank) %>%
       group_by(main_player) %>%
       summarise(across(.cols = contains("baseline_y"),
-                       .fns = ~mean(.x, na.rm = TRUE))
-                # across(.cols = contains("baseline_y"),
-                #        .fns = ~mean(if_else(.x > 0, .x, NULL), na.rm = TRUE),
-                #        .names = "{.col}_upside")
-                ) %>%
+                       .fns = ~mean(if_else(.x > 0, .x, 0), na.rm = TRUE),
+                       .names = "{.col}_upside"),
+                across(.cols = contains("baseline_y") & !contains("upside"),
+                       .fns = ~sum(if_else(.x > 0, 1, 0), na.rm = TRUE),
+                       .names = "{.col}_upside_counts"),
+                
+                across(.cols = contains("baseline_y") & !contains("upside"),
+                       .fns = ~mean(.x, na.rm = TRUE))) %>%
       ungroup() %>%
       separate("main_player",
                into = c("main_name","main_gsis_id","main_season"),sep = "\\|",
                remove = TRUE) %>%
       select(-main_gsis_id,-main_season) %>% 
-      mutate(across(.cols = where(is.numeric),
-                    .fns = ~round(.x,1)),
-             dynasty_value = avg_fp_above_baseline_y1 +
+      mutate(dynasty_value = avg_fp_above_baseline_y1 +
                0.8 * avg_fp_above_baseline_y2 +
                0.64 * avg_fp_above_baseline_y3,
-               # 0.512 * avg_fp_above_baseline_y4 +
-               # 0.4096 * avg_fp_above_baseline_y5,
-             rank = row_number(-dynasty_value)) %>% 
-      arrange(-dynasty_value)
+             dynasty_value_upside = avg_fp_above_baseline_y1_upside +
+               0.8 * avg_fp_above_baseline_y2_upside +
+               0.64 * avg_fp_above_baseline_y3_upside,
+             diff = dynasty_value_upside - dynasty_value,
+             rank = row_number(-dynasty_value_upside),
+             across(.cols = where(is.numeric),
+                    .fns = ~round(.x,1))) %>%
+      arrange(-dynasty_value_upside) %>% view() %>% 
+      select(main_name,
+             rank,
+             avg_fp_above_baseline_y0_upside,
+             avg_fp_above_baseline_y1_upside,
+             avg_fp_above_baseline_y2_upside,
+             avg_fp_above_baseline_y3_upside,
+             dynasty_value_upside)
+
+      
   })
   
   output$rank_table <- render_gt(
     season_ranks() %>% 
       gt(rowname_col = "main_name") %>% 
       fmt_number(
-        columns = c("avg_fp_above_baseline_y1",
-                    "avg_fp_above_baseline_y2",
-                    "avg_fp_above_baseline_y3",
-                    "avg_fp_above_baseline_y4",
-                    "avg_fp_above_baseline_y5",
-                    "dynasty_value"),
+        columns = c("avg_fp_above_baseline_y1_upside",
+                    "avg_fp_above_baseline_y2_upside",
+                    "avg_fp_above_baseline_y3_upside",
+                    "dynasty_value_upside"),
         decimals = 1) %>%
       cols_move_to_start(
         columns = vars(rank)) %>% 
       cols_label(
         rank = "Rank",
-        avg_fp_above_baseline_y0 = "0",
-        avg_fp_above_baseline_y1 = "1",
-        avg_fp_above_baseline_y2 = "2",
-        avg_fp_above_baseline_y3 = "3",
-        avg_fp_above_baseline_y4 = "4",
-        avg_fp_above_baseline_y5 = "5",
-        dynasty_value = "Weighted FPOB") %>% 
+        avg_fp_above_baseline_y0_upside = "0",
+        avg_fp_above_baseline_y1_upside = "1",
+        avg_fp_above_baseline_y2_upside = "2",
+        avg_fp_above_baseline_y3_upside = "3",
+        dynasty_value_upside = "Weighted FPOB") %>% 
       tab_spanner(
         label = "Fantasy Points Above Baseline Year + N",
         columns = 
           vars(
-            avg_fp_above_baseline_y0,
-            avg_fp_above_baseline_y1,
-            avg_fp_above_baseline_y2,
-            avg_fp_above_baseline_y3,
-            avg_fp_above_baseline_y4,
-            avg_fp_above_baseline_y5)
+            avg_fp_above_baseline_y0_upside,
+            avg_fp_above_baseline_y1_upside,
+            avg_fp_above_baseline_y2_upside,
+            avg_fp_above_baseline_y3_upside)
       ) %>% 
       data_color(
-        columns = vars(dynasty_value),
+        columns = vars(dynasty_value_upside),
         colors = scales::col_factor(
-          palette = 'PRGn',
-          #brewer.pal(12,'PRGn')[3:8],
+          palette = brewer.pal(12,'PRGn')[3:8],
           domain = NULL))
   )
   
