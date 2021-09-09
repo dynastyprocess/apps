@@ -134,7 +134,7 @@ gen_df_values <- function(players_raw, picks_raw,
   
   today_year <- year(today_date) %>% as.character()
   
-  if(today_month > 8){
+  if(today_month > 9){
     df <- df %>% 
       filter(str_detect(pick_label,today_year,negate = TRUE))
   }
