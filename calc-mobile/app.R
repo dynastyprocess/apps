@@ -94,7 +94,7 @@ ui <- f7Page( # f7Page setup and Init Options ----
                       f7SmartSelect(
                         'teams',
                         label = 'Teams',
-                        choices = glue("{seq(6,24,2)} teams"),
+                        choices = glue("{seq(6,32,2)} teams"),
                         selected = "12 teams"
                       ),
                       f7SmartSelect(
@@ -220,9 +220,14 @@ server <- function(input, output, session) {
   # Calculate Actual Values ----
 
   values <- reactive({
-    gen_df_values(players_raw,picks_raw,
-                  input$qb_type,input$teams,input$value_factor,
-                  input$rookie_optimism,input$draft_type,input$future_factor, 
+    gen_df_values(players_raw,
+                  picks_raw,
+                  input$qb_type,
+                  input$teams,
+                  input$value_factor,
+                  input$rookie_optimism,
+                  input$draft_type,
+                  input$future_factor, 
                   c('Player','Age','Value'))
   })
   
@@ -285,8 +290,8 @@ server <- function(input, output, session) {
     holdA <- input$players_teamA
     holdB <- input$players_teamB
     
-    updateF7AutoComplete('players_teamA',value = holdA)
-    updateF7AutoComplete('players_teamB',value = holdB)
+    updateF7AutoComplete('players_teamA', value = holdA)
+    updateF7AutoComplete('players_teamB', value = holdB)
   })
   
   # Results tab ----
@@ -388,7 +393,8 @@ server <- function(input, output, session) {
   output$trade_plot <- render_mobile({
     
     tibble(Team = c('Team A','Team B'),
-           Players = list(teamA_values(),teamB_values())) %>%
+           Players = list(teamA_values(),
+                          teamB_values())) %>%
       unnest(Players) %>%
       mobile(aes(x = Team, y = Value, color = Player, adjust = stack)) %>% 
       mobile_bar() %>% 
