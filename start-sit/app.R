@@ -40,26 +40,29 @@ ui <- dashboardPage(
                     column(width = 4,
                            selectizeInput("select_platform",
                                           "Select Playform:",
-                                          choices = c("mfl","sleeper","fleaflicker","espn"),
+                                          choices = c("MFL" = "mfl",
+                                                      "Sleeper" = "sleeper",
+                                                      "Fleaflicker" = "fleaflicker",
+                                                      "ESPN" = "espn"),
                                           multiple = FALSE,
                                           selected = "fleaflicker")
                     ),
                     column(width = 4,
-                           textInput("league_id", label = "Enter League ID", value = 312861),
+                           textInput("league_id", label = "Enter League ID", value = 312861)),
+                    column(width = 4,
                            actionButton("load_data",
                                         "Load League",
-                                        class = "btn-success")
-                    ),
-                    column(width = 4,
-                           selectizeInput("select_team",
-                                          "Select Team:",
-                                          choices = c(),
-                                          multiple = FALSE,
-                                          selected = NULL)))))),
-    box(
-      width = 12,
-      fluidRow(width = 12,
-               gt_output("team_table"))))
+                                        class = "btn-success")))))),
+    box(width = 12,
+        column(width = 4,
+               selectizeInput("select_team",
+                              "Select Team:",
+                              choices = c(),
+                              multiple = FALSE,
+                              selected = NULL)),
+        fluidRow(width = 12,
+                 gt_output("team_table")))
+  )
 )
 
 
@@ -79,7 +82,10 @@ server <- function(input, output, session) {
     
     updateSelectizeInput(session, 'select_team',
                          choices = rosters() %>% pull(franchise_name) %>% unique(),
-                         selected = rosters() %>% sample_n(1) %>% pull(franchise_name))
+                         selected = rosters() %>%
+                           filter(franchise_name != "Free Agents") %>% 
+                           sample_n(1) %>%
+                           pull(franchise_name))
     
   })
 
@@ -101,19 +107,48 @@ server <- function(input, output, session) {
                  ecr = "Consensus",
                  best = "Best",
                  worst = "Worst",
-                 projected_points = "Projected Points",
+                 projected_points = "Projection",
+                 roster_pct = "Roster %",
                  practice_status = "Practice",
-                 report_status = "Report") %>%
-      fmt_missing(columns = c(ovr_rank, pos_rank, ecr, best, worst), missing_text = "NR") %>% 
+                 report_status = "Report",
+                 snap_data = "Snap Trend") %>%
+      fmt_missing(columns = c(pos_rank, ovr_rank, ecr, best, worst, player_image_url, team_wordmark),
+                  missing_text = "") %>% 
+      fmt_pad_num(columns = c(ecr, projected_points), nsmall = 1, gfont = "Fira Mono") %>%
+      fmt_percent(columns = roster_pct, decimals = 1) %>% 
       gt_img_rows(columns = c(player_image_url,team_wordmark), height = 40) %>% 
       tab_spanner(label = "Rank", columns = c(ovr_rank, pos_rank, ecr, best, worst)) %>%
       tab_spanner(label = "Injury Report", columns = c(practice_status, report_status)) %>%
       gt_hulk_col_numeric(columns = projected_points) %>% 
-      gt_hulk_col_numeric(columns = ecr, reverse = TRUE) %>% 
+      gt_hulk_col_numeric(columns = ecr, reverse = TRUE) %>%
+      gt_sparkline(snap_data) %>% 
       cols_move(columns = c(player_image_url, position, team_wordmark,
                             ovr_rank, pos_rank, ecr, best, worst,
-                            projected_points, practice_status, report_status),
-                after = player_name)
+                            projected_points, practice_status, report_status,
+                            snap_data),
+                after = player_name) %>% 
+      cols_align(columns = team_wordmark, align = "center")  %>%
+      tab_style(
+        style = cell_text(font = google_font("Fira Mono"), weight = 800),
+        locations = cells_title(groups = "title")
+      ) %>%
+      tab_style(
+        style = cell_text(
+          size = px(16),
+          color = "darkgrey",
+          font = google_font("Fira Mono"),
+          transform = "uppercase"),
+        locations = cells_column_labels()) %>%
+    tab_style(
+      style = cell_text(
+        size = px(20),
+        color = "darkgrey",
+        font = google_font("Fira Mono"),
+        transform = "uppercase"),
+      locations = cells_column_spanners()) %>%
+      tab_style(
+        style = cell_text(font = google_font("Fira Mono"), weight =  400),
+        locations = cells_body())
   })
   
 }

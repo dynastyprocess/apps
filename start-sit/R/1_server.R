@@ -15,15 +15,32 @@ suppressPackageStartupMessages({
   library(bs4Dash)
   library(shinyWidgets)
   
-  
 })
 
 
 # platform <- "fleaflicker"
 # league_id <- 312861
 # conn_obj <- load_conn(platform, league_id)
-# roster_obj <- load_rosters(platform, league_id, conn_obj)
+# rank_obj <- load_rankings(conn_obj)
+# # roster_obj <- load_rosters(platform, league_id, conn_obj)
 # roster_combo <- combine_sources(conn_obj, platform)
+
+team_name_fn <- function(var) {
+  stringr::str_replace_all(
+    var,
+    c(
+      "JAC" = "JAX",
+      "STL" = "LA",
+      "SL" = "LA",
+      "ARZ" = "ARI",
+      "BLT" = "BAL",
+      "CLV" = "CLE",
+      "HST" = "HOU",
+      "SD" = "LAC",
+      "OAK" = "LV"
+    )
+  )
+}
 
 load_conn <- function(platform, league_id){
   ff_connect(platform = platform, league_id = league_id, season = 2021)
@@ -103,6 +120,23 @@ injury_data <- function(){
               report_status)
 }
 
+snap_data <- function(){
+  snap_weeks <- 
+    load_snap_counts(2020:2021) %>%
+    left_join(select(load_schedules(), game_id, week))
+  
+  player_expand <- 
+    expand_grid(pfr_id = snap_weeks %>% pull(pfr_id) %>% unique(),
+                week = c(1:17))
+    
+  player_expand %>% 
+    left_join(snap_weeks, by = c("pfr_id","week")) %>% 
+    mutate(offense_pct = replace_na(offense_pct, 0)) %>% 
+    group_by(pfr_id) %>% 
+    slice_tail(n = 16) %>% 
+    summarise(snap_data = list(offense_pct), .groups = "drop")
+}
+
 combine_sources <- function(conn_obj, platform){
   
   ffs_rosters(conn_obj) %>%
@@ -113,6 +147,9 @@ combine_sources <- function(conn_obj, platform){
               by = c("fantasypros_id", "pos"),
               suffix = c("", ".ranks")) %>%
     left_join(injury_data(), by = "fantasypros_id", na_matches ="never") %>%
+    left_join(select(dp_playerids(), fantasypros_id, pfr_id), by = "fantasypros_id") %>%
+    left_join(snap_data(), by = "pfr_id", na_matches ="never") %>% 
+    
     transmute(franchise_name = replace_na(franchise_name, "Free Agents"),
               player_name = coalesce(player_name.rosters, player_name.proj, player_name),
               player_image_url,
@@ -121,14 +158,18 @@ combine_sources <- function(conn_obj, platform){
               # sportradar_id = coalesce(sportradar_id, sportradar_id.ranks),
               position = factor(pos, levels = c("QB","RB","WR","TE"), ordered = TRUE),
               team = coalesce(team.rosters, team.proj, team),
+              team = team_name_fn(team),
               ovr_rank = rank,
               pos_rank = as.numeric(str_extract(pos_rank, "\\d+")),
               ecr,
               best,
               worst,
+              roster_pct = player_owned_yahoo / 100,
+              roster_pct = replace_na(roster_pct, 0),
               projected_points = replace_na(projected_points, 0),
-              practice_status= replace_na(practice_status, ""),
-              report_status= replace_na(report_status, "")) %>% 
+              practice_status = replace_na(practice_status, ""),
+              report_status = replace_na(report_status, ""),
+              snap_data = replace_na(snap_data, list(rep(0,16)))) %>% 
     left_join(select(load_teams(), team_abbr, team_wordmark), by = c("team"="team_abbr"))
   
 }
