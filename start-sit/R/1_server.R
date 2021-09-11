@@ -4,14 +4,17 @@ suppressPackageStartupMessages({
   library(ffscrapr)
   library(ffpros)
   library(ffsimulator)
+  library(nflreadr)
   library(tidyverse)
   library(gt)
-  library(RColorBrewer)
+  library(gtExtras)
+  # library(RColorBrewer)
   
   # Shiny
   library(shiny)
   library(bs4Dash)
   library(shinyWidgets)
+  
   
 })
 
@@ -92,7 +95,12 @@ load_rankings <- function(conn_obj){
 injury_data <- function(){
   nflreadr::load_injuries(2021) %>%
     left_join(select(dp_playerids(), gsis_id, fantasypros_id), by = "gsis_id") %>% 
-    select(fantasypros_id, practice_status, report_status)
+    transmute(fantasypros_id,
+              practice_status = case_when(practice_status == "Did Not Participate In Practice" ~ "DNP",
+                                          practice_status == "Full Participation in Practice" ~ "Full",
+                                          practice_status == "Limited Participation in Practice" ~ "Limited",
+                                          TRUE ~ practice_status),
+              report_status)
 }
 
 combine_sources <- function(conn_obj, platform){
@@ -104,23 +112,24 @@ combine_sources <- function(conn_obj, platform){
     full_join(load_rankings(conn_obj),
               by = c("fantasypros_id", "pos"),
               suffix = c("", ".ranks")) %>%
-    left_join(injury_data(), by = "fantasypros_id", na_matches ="never") %>% 
-    transmute(franchise_name = replace_na(franchise_name, "Free Agent"),
+    left_join(injury_data(), by = "fantasypros_id", na_matches ="never") %>%
+    transmute(franchise_name = replace_na(franchise_name, "Free Agents"),
               player_name = coalesce(player_name.rosters, player_name.proj, player_name),
+              player_image_url,
               # player_id,
-              fantasypros_id,
+              # fantasypros_id,
               # sportradar_id = coalesce(sportradar_id, sportradar_id.ranks),
               position = factor(pos, levels = c("QB","RB","WR","TE"), ordered = TRUE),
               team = coalesce(team.rosters, team.proj, team),
-              player_image_url,
               ovr_rank = rank,
-              pos_rank,
+              pos_rank = as.numeric(str_extract(pos_rank, "\\d+")),
               ecr,
               best,
               worst,
               projected_points = replace_na(projected_points, 0),
-              practice_status,
-              report_status)
+              practice_status= replace_na(practice_status, ""),
+              report_status= replace_na(report_status, "")) %>% 
+    left_join(select(load_teams(), team_abbr, team_wordmark), by = c("team"="team_abbr"))
   
 }
 

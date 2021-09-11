@@ -4,8 +4,10 @@ suppressPackageStartupMessages({
   library(ffscrapr)
   library(ffpros)
   library(ffsimulator)
+  library(nflreadr)
   library(tidyverse)
   library(gt)
+  library(gtExtras)
   library(RColorBrewer)
   
   # Shiny
@@ -43,11 +45,10 @@ ui <- dashboardPage(
                                           selected = "fleaflicker")
                     ),
                     column(width = 4,
-                           textInput("league_id", label = "Enter League ID", value = 312861)
-                           # actionButton("load_data",
-                           #              "Load League",
-                           #              icon = icon("list-ol"),
-                           #              class = "btn-success")
+                           textInput("league_id", label = "Enter League ID", value = 312861),
+                           actionButton("load_data",
+                                        "Load League",
+                                        class = "btn-success")
                     ),
                     column(width = 4,
                            selectizeInput("select_team",
@@ -71,51 +72,48 @@ server <- function(input, output, session) {
   rosters <- reactiveVal()
   
   #react on enter button
-  observeEvent({input$league_id},{
+  observeEvent({input$load_data},{
     league_conn(load_conn(input$select_platform, input$league_id))
     
     rosters(combine_sources(league_conn(), input$select_platform))
     
-    })
-  
-  observeEvent({input$league_id},{
     updateSelectizeInput(session, 'select_team',
-                         choices = rosters() %>% pull(franchise_name) %>% distinct(),
+                         choices = rosters() %>% pull(franchise_name) %>% unique(),
                          selected = rosters() %>% sample_n(1) %>% pull(franchise_name))
     
   })
 
   output$team_table <- render_gt({
-    req(input$league_id)
+    req(input$select_team)
     
     rosters() %>% 
       filter(franchise_name == input$select_team) %>% 
-      arrange(position, -projected_points, -ecr) %>% 
+      arrange(position, -projected_points, -ecr) %>%
+      select(-c(franchise_name, team)) %>% 
       gt() %>%
       tab_header(title = "Start/Sit Guide") %>%
-      cols_label(franchise_name = "Franchise Name",
-                 player_name = "Player",
+      cols_label(player_name = "Player",
+                 player_image_url = "",
                  position = "Position",
-                 team = "Team",
+                 team_wordmark = "Team",
                  ovr_rank = "Overall",
+                 pos_rank = "Positional",
                  ecr = "Consensus",
                  best = "Best",
                  worst = "Worst",
-                 projected_points = "Projected Points") %>% 
-      tab_spanner(label = "Rank",
-                  columns = c(ovr_rank, ecr, best, worst)) %>% 
-      data_color(
-        columns = c(projected_points),
-        colors = scales::col_factor(
-          brewer.pal(11,'PRGn')[3:8],
-          domain = NULL
-        ))%>% 
-      data_color(
-        columns = c(ecr),
-        colors = scales::col_factor(
-          brewer.pal(11,'PRGn')[8:3],
-          domain = NULL
-        ))
+                 projected_points = "Projected Points",
+                 practice_status = "Practice",
+                 report_status = "Report") %>%
+      fmt_missing(columns = c(ovr_rank, pos_rank, ecr, best, worst), missing_text = "NR") %>% 
+      gt_img_rows(columns = c(player_image_url,team_wordmark), height = 40) %>% 
+      tab_spanner(label = "Rank", columns = c(ovr_rank, pos_rank, ecr, best, worst)) %>%
+      tab_spanner(label = "Injury Report", columns = c(practice_status, report_status)) %>%
+      gt_hulk_col_numeric(columns = projected_points) %>% 
+      gt_hulk_col_numeric(columns = ecr, reverse = TRUE) %>% 
+      cols_move(columns = c(player_image_url, position, team_wordmark,
+                            ovr_rank, pos_rank, ecr, best, worst,
+                            projected_points, practice_status, report_status),
+                after = player_name)
   })
   
 }
