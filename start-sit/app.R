@@ -1,5 +1,5 @@
 # SETUP  ----------------------------------------------------------
-
+options(ffscrapr.cache = "filesystem")
 suppressPackageStartupMessages({
   library(ffscrapr)
   library(ffpros)
@@ -17,19 +17,21 @@ suppressPackageStartupMessages({
   
 })
 
-options(warn=0, dplyr.summarise.inform = FALSE)
+options(warn=1, dplyr.summarise.inform = FALSE)
 
 # DATA PREP --------------------------------------------------------------
-
 
 # UI section --------------------------------------------------------------
 ui <- dashboardPage(
   sidebar_collapsed = TRUE,
   title = "Start/Sit Guide - DynastyProcess.com",
-  # navbar = ui_header("Start/Sit App"),
+  navbar = ui_header("Start/Sit App"),
+  sidebar = ui_sidebar(
+    menuItem('Weekly',tabName = 'weekly',icon = 'quidditch')
+  ),
   dashboardBody(
     # use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
-    tags$style(HTML("#selectColBox {overflow:auto;}")),
+    # tags$style(HTML("#selectColBox {overflow:auto;}")),
     tabItems(
       tabItem(tabName = 'weekly',
               h1('Roster Breakdown', style = "padding-left:10px;"),
