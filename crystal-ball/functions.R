@@ -182,7 +182,7 @@ league_auth.espn <- function() {
 user_leagues.ffscrapr <- function(user_obj) {
   conn_user <- ff_connect(
     platform = user_obj$platform,
-    season = 2020,
+    season = format(Sys.Date(), "%Y"),
     league_id = user_obj$league_id,
     user_name = user_obj$user_name,
     password = user_obj$password,
@@ -233,10 +233,7 @@ team_select.espn <- function() {
 
 #### Load Data ####
 
-test_userobj <- function(){list(platform = "MFL",season = 2020, league_id = 14943, user_name = 'solarpool', password = 'M^#63tho')}
-
 load_data.ffscrapr <- function(user_obj, loaded_data) {
-  # browser()
   conn <- ff_connect(
     platform = user_obj$platform,
     season = user_obj$season,
@@ -274,7 +271,7 @@ load_data.ffscrapr <- function(user_obj, loaded_data) {
       loss_probability = 1 - win_probability
     ) %>%
     select(-ends_with("score"), -result)
-
+  
   standings_forecast <- standings_raw %>%
     select(starts_with('franchise'),allplay_winpct,starts_with('h2h')) %>%
     left_join(

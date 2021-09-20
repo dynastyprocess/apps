@@ -132,7 +132,7 @@ server <- function(input, output, session) {
 
   output$season_projections <- renderUI({
     req(loaded_data$standings_forecast)
-
+    
     season_projection(loaded_data)
 
   })
