@@ -2,8 +2,8 @@ suppressPackageStartupMessages({
   # Data import/export
   library(arrow)
   library(DBI)
-  library(RSQLite)
-  library(pool)
+  # library(RSQLite)
+  # library(pool)
   # Data manipulation
   library(tidyverse)
   library(lubridate)
@@ -29,196 +29,196 @@ source('../calculator-internal/fn_server.R')
 players_raw <- read_parquet('../calculator-internal/player_raw.pdata')
 picks_raw <- read_parquet('../calculator-internal/picks_raw.pdata')
 
-pool_localdb <- dbPool(SQLite(),
-               dbname = '../calculator-internal/calculator_log.sqlite',
-               minSize = 10
-               )
+# pool_localdb <- dbPool(SQLite(),
+#                dbname = '../calculator-internal/calculator_log.sqlite',
+#                minSize = 10
+#                )
 
 ui <- f7Page( # f7Page setup and Init Options ----
-  title = "DynastyProcess Trade Calculator",
-  dark_mode = TRUE,
-  manifest = "manifest.json",
-  favicon = "favicon.ico",
-  icon = '128x128.png',
-  init = f7Init(
-    skin = 'md',
-    theme = 'dark',
-    color = 'pink',
-    tapHold = FALSE
-  ),
-  f7TabLayout( # f7TabLayout ----
-    use_sever(),
-    meta() %>%
-      meta_social(
-        title = "Trade Calculator - DynastyProcess.com",
-        description = "A dynasty trade calculator that you can customize for your strategy and league!",
-        url = "https://apps.dynastyprocess.com/calculator",
-        image = "https://github.com/dynastyprocess/graphics/raw/main/.dynastyprocess/logohexonly.png",
-        image_alt = "DynastyProcess logo",
-        twitter_creator = "@_TanHo",
-        twitter_card_type = "summary",
-        twitter_site = "@DynastyProcess"
-      ),
-    addcss_transparentDT(),
-    navbar = ui_header(),
-    panels = ui_sidebar(),
-    appbar = NULL,
-    f7Tabs( 
-      # Main tabs ----
-      id = 'tabs',
-      f7Tab( # input tab ----
-             tabName = "Inputs",
-             icon = f7Icon('wand_stars', old = FALSE),
-             active = TRUE,
-             br(),
-             div(img(src = 'icons/128x128.png'), style = 'text-align:center;'),
-             
-             h1("Main Inputs", style = "text-align:center"),
-             uiOutput('team_inputs'),
-             
-             f7SmartSelect(
-               'calc_type',
-               label = "Trade Details",
-               smart = FALSE,
-               choices = c("I'm considering this trade",
-                           "I've received this trade offer",
-                           "I've completed this trade"
-                           )),
-             f7Card(title = 'Customize Value Settings',
-                    f7Row(
-                      f7SmartSelect(
-                        'qb_type',
-                        label = 'QB Type',
-                        choices = c('1QB', '2QB/SF')
-                      ),
-                      f7SmartSelect(
-                        'teams',
-                        label = 'Teams',
-                        choices = glue("{seq(6,32,2)} teams"),
-                        selected = "12 teams"
-                      ),
-                      f7SmartSelect(
-                        'draft_type',
-                        label = "Display Mode",
-                        choices = c('Normal',
-                                    'Startup (Players & Picks)',
-                                    'Startup (Players Only)')
-                      )
-                      
-                    ),
-                    f7Slider(
-                      'value_factor',
-                      "Valuation Factor",
-                      min = 210,
-                      max = 260,
-                      value = 235,
-                      step = 5,
-                      labels = tagList(
-                        f7Icon("square_stack_3d_up_fill", old = FALSE),
-                        f7Icon("star_circle_fill", old = FALSE)
-                      )
-                    ),
-                    f7Slider(
-                      'rookie_optimism',
-                      'Rookie Optimism',
-                      min = 0,
-                      max = 100,
-                      value = 80,
-                      step = 5,
-                      labels = tagList(
-                        f7Icon("bolt_slash_fill", old = FALSE),
-                        f7Icon("bolt_fill", old = FALSE)
-                      )
-                    ),
-                    f7Slider(
-                      'future_factor',
-                      'Future Pick Value',
-                      min = 65,
-                      max = 95,
-                      value = 80,
-                      step = 5,
-                      labels = tagList(
-                        f7Icon("play_fill", old = FALSE),
-                        f7Icon("forward_fill", old = FALSE)
-                      )
-                    ),
-                    br(),
-                    f7Button(
-                      'toggle_inputhelp',
-                      label = "Help",
-                      shadow = TRUE,
-                      size = 'small',
-                      rounded = TRUE
-                    )
-             ),
-             ui_spacer()
-      ),
-      f7Tab( # analysis tab ----
-        tabName = "Analysis",
-        icon = f7Icon('graph_circle_fill', old = FALSE),
-        h1("Trade Analysis", style = 'text-align:center;'),
-        uiOutput('results_tab')
-      ),
-      f7Tab(tabName = "Values", # values tab ----
-        icon = f7Icon('square_favorites_fill', old = FALSE),
-        h1('Values - Quick Reference', style = 'text-align:center;'),
-        uiOutput('values')
-      ),
-      f7Tab(tabName = "About", # about tab ----
-        icon = f7Icon('info_circle_fill', old = FALSE),
-        br(),
-        div(img(src = 'icons/128x128.png'), style = 'text-align:center;'),
-        br(),
-        f7Card(title = "About",
-               includeMarkdown('about.md')),
-        br(),
-        f7Card(glue(
-          "ECR last updated: {players_raw$scrape_date[[1]]}"
-        )),
-        br(),
-        f7Card(
-          title = "More by DynastyProcess:",
-          f7List(
-            inset = TRUE,
-            # f7ListItem(title = "Desktop Version",
-            #            url = "https://apps.dynastyprocess.com/calculator",
-            #            media = f7Icon('number_circle_fill',old = FALSE)),
-            f7ListItem(
-              title = "Crystal Ball",
-              media = f7Icon('moon_circle_fill', old = FALSE),
-              url = "https://apps.dynastyprocess.com/crystalball"
-            ),
-            f7ListItem(
-              title = "Twitter",
-              media = f7Icon('logo_twitter', old = FALSE),
-              url = "https://www.twitter.com/dynastyprocess"
-            ),
-            f7ListItem(
-              title = "Data Repository",
-              media = f7Icon('archivebox_fill', old = FALSE),
-              url = "https://www.github.com/dynastyprocess/data"
-            ),
-            f7ListItem(
-              title = "Main Site",
-              media = f7Icon('waveform_circle_fill', old = FALSE),
-              url =
-                "https://dynastyprocess.com"
-            )
-          )
-        ),
-        
-        br()
-        # f7Card(title = "Popular Players")
-                                   )
+              title = "DynastyProcess Trade Calculator",
+              dark_mode = TRUE,
+              manifest = "manifest.json",
+              favicon = "favicon.ico",
+              icon = '128x128.png',
+              init = f7Init(
+                skin = 'md',
+                theme = 'dark',
+                color = 'pink',
+                tapHold = FALSE
+              ),
+              f7TabLayout( # f7TabLayout ----
+                           use_sever(),
+                           meta() %>%
+                             meta_social(
+                               title = "Trade Calculator - DynastyProcess.com",
+                               description = "A dynasty trade calculator that you can customize for your strategy and league!",
+                               url = "https://apps.dynastyprocess.com/calculator",
+                               image = "https://github.com/dynastyprocess/graphics/raw/main/.dynastyprocess/logohexonly.png",
+                               image_alt = "DynastyProcess logo",
+                               twitter_creator = "@_TanHo",
+                               twitter_card_type = "summary",
+                               twitter_site = "@DynastyProcess"
+                             ),
+                           addcss_transparentDT(),
+                           navbar = ui_header(),
+                           panels = ui_sidebar(),
+                           appbar = NULL,
+                           f7Tabs( 
+                             # Main tabs ----
+                             id = 'tabs',
+                             f7Tab( # input tab ----
+                                    tabName = "Inputs",
+                                    icon = f7Icon('wand_stars', old = FALSE),
+                                    active = TRUE,
+                                    br(),
+                                    div(img(src = 'icons/128x128.png'), style = 'text-align:center;'),
+                                    
+                                    h1("Main Inputs", style = "text-align:center"),
+                                    uiOutput('team_inputs'),
+                                    
+                                    f7SmartSelect(
+                                      'calc_type',
+                                      label = "Trade Details",
+                                      smart = FALSE,
+                                      choices = c("I'm considering this trade",
+                                                  "I've received this trade offer",
+                                                  "I've completed this trade"
+                                      )),
+                                    f7Card(title = 'Customize Value Settings',
+                                           f7Row(
+                                             f7SmartSelect(
+                                               'qb_type',
+                                               label = 'QB Type',
+                                               choices = c('1QB', '2QB/SF')
+                                             ),
+                                             f7SmartSelect(
+                                               'teams',
+                                               label = 'Teams',
+                                               choices = glue("{seq(6,32,2)} teams"),
+                                               selected = "12 teams"
+                                             ),
+                                             f7SmartSelect(
+                                               'draft_type',
+                                               label = "Display Mode",
+                                               choices = c('Normal',
+                                                           'Startup (Players & Picks)',
+                                                           'Startup (Players Only)')
+                                             )
+                                             
+                                           ),
+                                           f7Slider(
+                                             'value_factor',
+                                             "Valuation Factor",
+                                             min = 210,
+                                             max = 260,
+                                             value = 235,
+                                             step = 5,
+                                             labels = tagList(
+                                               f7Icon("square_stack_3d_up_fill", old = FALSE),
+                                               f7Icon("star_circle_fill", old = FALSE)
+                                             )
+                                           ),
+                                           f7Slider(
+                                             'rookie_optimism',
+                                             'Rookie Optimism',
+                                             min = 0,
+                                             max = 100,
+                                             value = 60,
+                                             step = 5,
+                                             labels = tagList(
+                                               f7Icon("bolt_slash_fill", old = FALSE),
+                                               f7Icon("bolt_fill", old = FALSE)
+                                             )
+                                           ),
+                                           f7Slider(
+                                             'future_factor',
+                                             'Future Pick Value',
+                                             min = 65,
+                                             max = 95,
+                                             value = 80,
+                                             step = 5,
+                                             labels = tagList(
+                                               f7Icon("play_fill", old = FALSE),
+                                               f7Icon("forward_fill", old = FALSE)
+                                             )
+                                           ),
+                                           br(),
+                                           f7Button(
+                                             'toggle_inputhelp',
+                                             label = "Help",
+                                             shadow = TRUE,
+                                             size = 'small',
+                                             rounded = TRUE
+                                           )
+                                    ),
+                                    ui_spacer()
+                             ),
+                             f7Tab( # analysis tab ----
+                                    tabName = "Analysis",
+                                    icon = f7Icon('graph_circle_fill', old = FALSE),
+                                    h1("Trade Analysis", style = 'text-align:center;'),
+                                    uiOutput('results_tab')
+                             ),
+                             f7Tab(tabName = "Values", # values tab ----
+                                   icon = f7Icon('square_favorites_fill', old = FALSE),
+                                   h1('Values - Quick Reference', style = 'text-align:center;'),
+                                   uiOutput('values')
+                             ),
+                             f7Tab(tabName = "About", # about tab ----
+                                   icon = f7Icon('info_circle_fill', old = FALSE),
+                                   br(),
+                                   div(img(src = 'icons/128x128.png'), style = 'text-align:center;'),
+                                   br(),
+                                   f7Card(title = "About",
+                                          includeMarkdown('about.md')),
+                                   br(),
+                                   f7Card(glue(
+                                     "ECR last updated: {players_raw$scrape_date[[1]]}"
+                                   )),
+                                   br(),
+                                   f7Card(
+                                     title = "More by DynastyProcess:",
+                                     f7List(
+                                       inset = TRUE,
+                                       # f7ListItem(title = "Desktop Version",
+                                       #            url = "https://apps.dynastyprocess.com/calculator",
+                                       #            media = f7Icon('number_circle_fill',old = FALSE)),
+                                       f7ListItem(
+                                         title = "Crystal Ball",
+                                         media = f7Icon('moon_circle_fill', old = FALSE),
+                                         url = "https://apps.dynastyprocess.com/crystalball"
+                                       ),
+                                       f7ListItem(
+                                         title = "Twitter",
+                                         media = f7Icon('logo_twitter', old = FALSE),
+                                         url = "https://www.twitter.com/dynastyprocess"
+                                       ),
+                                       f7ListItem(
+                                         title = "Data Repository",
+                                         media = f7Icon('archivebox_fill', old = FALSE),
+                                         url = "https://www.github.com/dynastyprocess/data"
+                                       ),
+                                       f7ListItem(
+                                         title = "Main Site",
+                                         media = f7Icon('waveform_circle_fill', old = FALSE),
+                                         url =
+                                           "https://dynastyprocess.com"
+                                       )
+                                     )
+                                   ),
+                                   
+                                   br()
+                                   # f7Card(title = "Popular Players")
+                             )
                            )
               )) # end of UI tab ----
 # start of server ----
 server <- function(input, output, session) { 
-
+  
   sever_joke() # cleans up disconnect screen
-
+  
   # Calculate Actual Values ----
-
+  
   values <- reactive({
     gen_df_values(players_raw,
                   picks_raw,
@@ -242,7 +242,7 @@ server <- function(input, output, session) {
                    choices = values()$Player,
                    # value = NULL
                    value = values()$Player[sample(1:32,1)]
-                   )})
+    )})
   
   output$teamBinput <- renderUI({
     f7AutoComplete('players_teamB',
@@ -253,7 +253,7 @@ server <- function(input, output, session) {
                    choices = values()$Player,
                    # value = NULL
                    value = values()$Player[sample(1:32,1)]
-                   )})
+    )})
   
   output$teamA_list <- renderUI({
     req(input$players_teamA)
@@ -330,7 +330,7 @@ server <- function(input, output, session) {
   output$trade_gauge <- renderUI({
     
     gauge_value <- if(teamA_total() > teamB_total()){50+percent_diff()/2} else {50-percent_diff()/2}
-
+    
     f7Gauge('score',type = 'semicircle', value = gauge_value,
             borderBgColor = '#1b7837',
             borderColor = '#762a83',
@@ -437,8 +437,8 @@ server <- function(input, output, session) {
     
     div(
       f7Card(
-      div(uiOutput('trade_gauge',height = '250px'),style = 'text-align:center;'),inset= TRUE),
-
+        div(uiOutput('trade_gauge',height = '250px'),style = 'text-align:center;'),inset= TRUE),
+      
       f7Card(title = textOutput('teamA_total'), inset = TRUE,
              DTOutput('teamA_valuetable')
       ),
@@ -486,7 +486,7 @@ server <- function(input, output, session) {
       br(),
       br(),
       br()
-      )
+    )
   })
   
   # show last updated ----
@@ -504,6 +504,7 @@ server <- function(input, output, session) {
     saved_data <- tibble(
       trade_id = UUIDgenerate(1),
       session_id = sessionID,
+      datestamp = as.numeric(Sys.Date()),
       timestamp = Sys.time(),
       input_calctype = input$calc_type,
       input_drafttype = input$draft_type,
@@ -520,9 +521,16 @@ server <- function(input, output, session) {
       teamB_total = teamB_total()
     )
     
-      try({
-        pool_save(pool_localdb, 'calculator_log',saved_data)
-        })
+      
+      arrow::write_dataset(
+        saved_data,
+        path = "../calculator-internal/trades",
+        format = "parquet",
+        partitioning = "datestamp",
+        basename_template = "part_{i}.parquet"
+      )
+    
+    #   pool_save(pool_localdb, 'calculator_log',saved_data)
   })
   
 } # end of server segment ----
