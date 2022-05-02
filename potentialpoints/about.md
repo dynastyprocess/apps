@@ -1,1 +1,0 @@
-This is a utility designed to calculate potential points for **public** ESPN leagues. As commish, you should consider moving your league to MFL or Sleeper!
