@@ -7,3 +7,6 @@
 [submodule "apps-calculator"]
 	path = apps-calculator
 	url = https://github.com/dynastyprocess/apps-calculator
+[submodule "apps-potentialpoints"]
+	path = apps-potentialpoints
+	url = https://github.com/dynastyprocess/apps-potentialpoints.git
