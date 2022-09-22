@@ -24,16 +24,16 @@ options(warn=1, dplyr.summarise.inform = FALSE)
 # UI section --------------------------------------------------------------
 ui <- dashboardPage(
   sidebar_collapsed = TRUE,
-  title = "Start/Sit Guide - DynastyProcess.com",
-  navbar = ui_header("Start/Sit App"),
+  title = "League History - DynastyProcess.com",
+  navbar = ui_header("League History App"),
   sidebar = ui_sidebar(
-    menuItem('Weekly',tabName = 'weekly',icon = 'quidditch')
+    menuItem('Weekly', tabName = 'history', icon = 'quidditch')
   ),
   dashboardBody(
     # use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
     # tags$style(HTML("#selectColBox {overflow:auto;}")),
     tabItems(
-      tabItem(tabName = 'weekly',
+      tabItem(tabName = 'history',
               h1('Roster Breakdown', style = "padding-left:10px;"),
               box(title = "Inputs",
                   status = "danger",

@@ -17,13 +17,18 @@ suppressPackageStartupMessages({
   
 })
 
+platform <- "sleeper"
+league_id <- 652718526494253056
 
-# platform <- "fleaflicker"
-# league_id <- 312861
-# conn_obj <- load_conn(platform, league_id)
+# platform <- "mfl"
+# league_id <- 22627
+
+conn_obj <- load_conn(platform, league_id)
 # rank_obj <- load_rankings(conn_obj)
-# # roster_obj <- load_rosters(platform, league_id, conn_obj)
-# roster_combo <- combine_sources(conn_obj, platform)
+# roster_obj <- load_rosters(platform, league_id, conn_obj)
+roster_combo <- combine_sources(conn_obj, platform)
+roster_combo %>% filter(franchise_name %in% c("Free Agents", "sox05syd")) %>% view()
+
 
 team_name_fn <- function(var) {
   stringr::str_replace_all(
@@ -46,8 +51,13 @@ load_conn <- function(platform, league_id){
   ff_connect(platform = platform, league_id = league_id, season = 2021)
 }
 
+get_ros_ranks <- function(){
+  fp_rankings(page = "ros-ppr-overall", sport = "nfl", year = 2021) %>%
+    transmute(fantasypros_id, ros_ecr = round(ecr,1))
+}
+
 get_projections_page <- function(pos){
-  fp_projections(page = pos, sport = "nfl", year = 2021, week = 1)
+  fp_projections(page = pos, sport = "nfl", year = 2021)
 }
 
 
@@ -111,6 +121,7 @@ load_rankings <- function(conn_obj){
 
 injury_data <- function(){
   nflreadr::load_injuries(2021) %>%
+    filter(week == 4) %>% 
     left_join(select(dp_playerids(), gsis_id, fantasypros_id), by = "gsis_id") %>% 
     transmute(fantasypros_id,
               practice_status = case_when(practice_status == "Did Not Participate In Practice" ~ "DNP",
@@ -120,21 +131,52 @@ injury_data <- function(){
               report_status)
 }
 
-snap_data <- function(){
-  snap_weeks <- 
-    load_snap_counts(2020:2021) %>%
-    left_join(select(load_schedules(), game_id, week))
-  
-  player_expand <- 
-    expand_grid(pfr_id = snap_weeks %>% pull(pfr_id) %>% unique(),
-                week = c(1:17))
-    
-  player_expand %>% 
-    left_join(snap_weeks, by = c("pfr_id","week")) %>% 
-    mutate(offense_pct = replace_na(offense_pct, 0)) %>% 
-    group_by(pfr_id) %>% 
-    slice_tail(n = 16) %>% 
-    summarise(snap_data = list(offense_pct), .groups = "drop")
+# snap_data <- function(){
+#   snap_weeks <- 
+#     load_snap_counts(2020:2021) %>%
+#     left_join(select(load_schedules(), game_id, week))
+#   
+#   player_expand <- 
+#     expand_grid(pfr_id = snap_weeks %>% pull(pfr_id) %>% unique(),
+#                 week = c(1:17))
+#     
+#   player_expand %>% 
+#     left_join(snap_weeks, by = c("pfr_id","week")) %>% 
+#     mutate(offense_pct = replace_na(offense_pct, 0)) %>% 
+#     group_by(pfr_id) %>% 
+#     slice_tail(n = 16) %>% 
+#     summarise(snap_data = list(offense_pct), .groups = "drop")
+# }
+
+load_expected_points <- function(){
+  arrow::read_parquet("~/Documents/DynastyProcess/research/expected-points/expected_points_2021.pdata") %>% 
+    select(
+      player_name = full_name,
+      # season,
+      week,
+      pos = position,
+      total_fantasy_points_exp,
+      total_fantasy_points,
+      total_fantasy_points_diff,
+      # offense_snaps,
+      # offense_pct,
+      gsis_id = player_id
+    ) %>%
+    filter(pos %in% c("QB", "RB", "WR", "TE")) %>%
+    group_by(gsis_id) %>%
+    summarise(
+      across(#.cols = contains("fantasy_points"),
+        .cols = c(total_fantasy_points_exp,
+                  total_fantasy_points,
+                  total_fantasy_points_diff,
+                  # offense_snaps,
+                  # offense_pct
+                  ),
+             .fns = ~ mean(.x, na.rm = TRUE) %>% round(1)),
+      # snap_data = list(offense_pct),
+      games = n()
+    ) %>%
+    ungroup()
 }
 
 combine_sources <- function(conn_obj, platform){
@@ -147,8 +189,9 @@ combine_sources <- function(conn_obj, platform){
               by = c("fantasypros_id", "pos"),
               suffix = c("", ".ranks")) %>%
     left_join(injury_data(), by = "fantasypros_id", na_matches ="never") %>%
-    left_join(select(dp_playerids(), fantasypros_id, pfr_id), by = "fantasypros_id") %>%
-    left_join(snap_data(), by = "pfr_id", na_matches ="never") %>% 
+    left_join(select(dp_playerids(), fantasypros_id, gsis_id), by = "fantasypros_id") %>%
+    left_join(get_ros_ranks(), by = "fantasypros_id") %>% 
+    left_join(load_expected_points(), by = "gsis_id", na_matches ="never") %>% 
     
     transmute(franchise_name = replace_na(franchise_name, "Free Agents"),
               player_name = coalesce(player_name.rosters, player_name.proj, player_name),
@@ -159,6 +202,7 @@ combine_sources <- function(conn_obj, platform){
               position = factor(pos, levels = c("QB","RB","WR","TE"), ordered = TRUE),
               team = coalesce(team.rosters, team.proj, team),
               team = team_name_fn(team),
+              ros_ecr,
               ovr_rank = rank,
               pos_rank = as.numeric(str_extract(pos_rank, "\\d+")),
               ecr,
@@ -169,7 +213,17 @@ combine_sources <- function(conn_obj, platform){
               projected_points = replace_na(projected_points, 0),
               practice_status = replace_na(practice_status, ""),
               report_status = replace_na(report_status, ""),
-              snap_data = replace_na(snap_data, list(rep(0,16)))) %>% 
+              total_fantasy_points_exp = replace_na(total_fantasy_points_exp, 0),
+              total_fantasy_points = replace_na(total_fantasy_points, 0),
+              total_fantasy_points_diff = replace_na(total_fantasy_points_diff, 0),
+              # offense_snaps,
+              # offense_pct = offense_pct / 100
+              # snap_data = case_when(is.na(snap_data) ~ list(rep(0,2)),
+              #                       length(snap_data) < 2 ~ list(c(0,snap_data)),
+              #                       TRUE ~ snap_data)
+              # snap_data
+              # snap_data = replace_na(snap_data, list(rep(0,2)))
+              ) %>% 
     left_join(select(load_teams(), team_abbr, team_wordmark), by = c("team"="team_abbr"))
   
 }
