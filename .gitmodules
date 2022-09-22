@@ -4,3 +4,9 @@
 [submodule "apps-rankings"]
 	path = apps-rankings
 	url = git@github.com:dynastyprocess/apps-rankings.git
+[submodule "apps-calculator"]
+	path = apps-calculator
+	url = https://github.com/dynastyprocess/apps-calculator
+[submodule "apps-potentialpoints"]
+	path = apps-potentialpoints
+	url = https://github.com/dynastyprocess/apps-potentialpoints.git

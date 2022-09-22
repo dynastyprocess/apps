@@ -149,31 +149,36 @@ gen_df_values <- function(players_raw, picks_raw,
   
   df %>%
     filter(case_when(displaymode == 'Startup (Players Only)'~ pos!='PICK',
-                     displaymode == 'Startup (Players & Picks)'~ (pos!='PICK'|grepl(year(Sys.Date()),player)))) %>% 
+                     displaymode == 'Startup (Players & Picks)'~ ((pos!='PICK' & draft_year!=year(Sys.Date())) | grepl(year(Sys.Date()),player)))) %>% 
     arrange(desc(value)) %>% 
     rowid_to_column(var='pick') %>% 
     mutate(startup_round = (pick %/% l_s)+1,
            startup_pick = round(pick %% l_s,0),
+           age = NA_real_,
            player = paste0("Startup Pick ",startup_round,".",str_pad(startup_pick,2,'left',0))) %>% 
     bind_rows(df) %>% 
     arrange(desc(value),player)
 }
 
 sever_joke <- function(){ 
-  
   sever::sever(
-  shiny::tagList(
-    shiny::h1("Disconnected"),
-    shiny::p(shiny::em(try(joker::randomjoke()))),
-    shiny::tags$button(
-      "Reload",
-      style = "color:#000;background-color:#fff;",
-      class = "button button-raised",
-      onClick = "location.reload();"
-    )
-  ),
-  bg_color = "#000"
-)
+    # sever::sever_default(
+    #   title = "Disconnected",
+    #   subtitle = try(joker::randomjoke()),
+    #   button = "Reconnect"
+    #   ),
+    shiny::tagList(
+      shiny::h1("Disconnected"),
+      shiny::p(shiny::em(try(joker::randomjoke()))),
+      shiny::tags$button(
+        "Reload",
+        style = "color:#000;background-color:#fff;",
+        class = "button button-raised",
+        onClick = "location.reload();"
+      )
+    ),
+    bg_color = "#000"
+  )
 }
 
 pool_save <- function(db_pool,tablename = 'calculator_log',dataframe){
