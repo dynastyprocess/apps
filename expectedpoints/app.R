@@ -1,8 +1,6 @@
 suppressPackageStartupMessages({
   # Data import
   library(arrow)
-  library(DBI)
-  library(RSQLite)
   library(here)
   
   # Data manipulation
@@ -12,7 +10,7 @@ suppressPackageStartupMessages({
   library(magrittr)
   
   # Plotting
-  library(ggimage)
+  # library(ggimage)
   library(grid)
   library(ggrepel)
   library(nflfastR)
@@ -57,30 +55,54 @@ colClean <- function(x) {str_to_upper(gsub("_", " ", colnames(x), fixed = TRUE))
 # Import Data -------------------------------------------------------------
 
 setwd(here::here())
-epdata <- read_parquet("ep_1999_2019.pdata") %>% 
-  filter(Season >= 2011)
-vars <- epdata %>% select(contains("pass"), contains("rush"), contains("rec"), contains("total"), -contains("team"), -contains("proxy")) %>%
-  colClean() %>% sort()
-week_seasons <- epdata %>% arrange(Season, Week) %>% distinct(week_season) %>% as_vector()
+epdata <- read_parquet("data/expected_points_df.pdata")
+
+vars <- epdata %>% 
+  select(contains("pass"),
+         contains("rush"),
+         contains("rec"), 
+         contains("total"),
+         -contains("team"),
+         -contains("proxy")) %>%
+  colClean() %>% 
+  sort()
+
+week_seasons <- epdata %>% 
+  arrange(season, week) %>%
+  transmute(week_season = glue::glue("Week {week} {season}")) %>% 
+  distinct(week_season) %>%
+  as_vector()
 
 week_master <- epdata %>%
-  select(Season, Week, week_season, week_season_num) %>%
+  group_by(season, week, week_season = glue::glue("Week {week} {season}")) %>%
+  mutate(week_season_num = cur_group_id()) %>%
+  ungroup() %>% 
+  select(season, week, week_season, week_season_num) %>%
   distinct()
 
 logos <- nflfastR::teams_colors_logos
 
 season_data <- epdata %>%
-  filter(Week <= 17) %>% 
-  select(Season, Team, gsis_game_id, contains("team")) %>% 
+  filter(week <= 17) %>% 
+  select(season, team = posteam, contains("team")) %>% 
   unique() %>% 
-  group_by(Season,Team) %>% 
-  summarise(games=n_distinct((gsis_game_id)),
+  group_by(season, team) %>% 
+  summarise(games = n(),
             across(contains("team"), ~sum(.x, na.rm = TRUE))) %>% 
   ungroup() %>% 
-  inner_join(select(logos, team_abbr, team_logo_wikipedia),by=c("Team"="team_abbr"))
+  inner_join(select(logos, team_abbr, team_logo_wikipedia),by=c("team"="team_abbr"))
 
-vars2 <- season_data %>% select(contains("team"), -pass_att_team, -pass_ay_team, -pass_comp_team, -Team, -team_logo_wikipedia,
-                                -ends_with("x"), -ends_with("diff")) %>% colClean() %>% sort()
+vars2 <- season_data %>% 
+  select(contains("team"),
+         -pass_attempt_team,
+         -pass_air_yards_team, 
+         -pass_completions_team,
+         -team,
+         -team_logo_wikipedia,
+         -ends_with("exp_team"),
+         -ends_with("diff_team")) %>% 
+  colClean() %>% 
+  sort()
 
 # UI section --------------------------------------------------------------
 ui <- dashboardPage(
