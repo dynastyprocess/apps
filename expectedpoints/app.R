@@ -10,7 +10,7 @@ suppressPackageStartupMessages({
   library(magrittr)
   
   # Plotting
-  # library(ggimage)
+  library(ggimage)
   library(grid)
   library(ggrepel)
   library(nflfastR)
@@ -33,10 +33,10 @@ options(warn=0, dplyr.summarise.inform = FALSE)
 get_players_sorted <- function(data, var) {
   
   data %>%
-    group_by(Name) %>% 
+    group_by(name) %>% 
     summarise(total = sum(.data[[var]], na.rm = TRUE)) %>% 
     arrange(desc(total)) %>%
-    select(Name) %>% 
+    select(name) %>% 
     pull()
 }
 
@@ -55,7 +55,18 @@ colClean <- function(x) {str_to_upper(gsub("_", " ", colnames(x), fixed = TRUE))
 # Import Data -------------------------------------------------------------
 
 setwd(here::here())
-epdata <- read_parquet("data/expected_points_df.pdata")
+epdata <- nflreadr::load_ff_opportunity(
+  season = 2015: nflreadr:::most_recent_season(),
+  stat_type = "weekly",
+  model_version = "latest") %>% 
+  rename(team = posteam,
+         name = full_name,
+         pos = position) %>% 
+  mutate(season = as.numeric(season),
+         week_season = glue::glue("Week {week}, {season}")) %>% 
+  group_by(season, week, week_season) %>%
+  mutate(week_season_num = cur_group_id()) %>%
+  ungroup()
 
 vars <- epdata %>% 
   select(contains("pass"),
@@ -69,14 +80,10 @@ vars <- epdata %>%
 
 week_seasons <- epdata %>% 
   arrange(season, week) %>%
-  transmute(week_season = glue::glue("Week {week} {season}")) %>% 
   distinct(week_season) %>%
   as_vector()
 
 week_master <- epdata %>%
-  group_by(season, week, week_season = glue::glue("Week {week} {season}")) %>%
-  mutate(week_season_num = cur_group_id()) %>%
-  ungroup() %>% 
   select(season, week, week_season, week_season_num) %>%
   distinct()
 
@@ -84,7 +91,7 @@ logos <- nflfastR::teams_colors_logos
 
 season_data <- epdata %>%
   filter(week <= 17) %>% 
-  select(season, team = posteam, contains("team")) %>% 
+  select(season, team, contains("team")) %>% 
   unique() %>% 
   group_by(season, team) %>% 
   summarise(games = n(),
@@ -106,15 +113,15 @@ vars2 <- season_data %>%
 
 # UI section --------------------------------------------------------------
 ui <- dashboardPage(
-  sidebar_collapsed = TRUE,
+  # sidebar_collapsed = TRUE,
   title = "Expected Points - DynastyProcess.com",
-  navbar = ui_header("Expected Points App"),
+  header = ui_header("Expected Points App"),
   sidebar = ui_sidebar(
-    menuItem('Weekly EP',tabName = 'weekly',icon = 'chart-line'),
-    menuItem('Data Tables',tabName = 'data', icon = 'table'),
+    menuItem('Weekly EP', tabName = 'weekly', icon = shiny::icon('chart-line')),
+    menuItem('Data Tables', tabName = 'data', icon = shiny::icon('table')),
     #menuItem('Trends',tabName = 'trends',icon = 'send'),
-    menuItem('Team Level Trends',tabName = 'league',icon = 'trophy'),
-    menuItem('About',tabName = 'about',icon = 'question-circle')
+    menuItem('Team Level Trends', tabName = 'league', icon = shiny::icon('trophy')),
+    menuItem('About',tabName = 'about', icon = shiny::icon('question-circle'))
   ),
   dashboardBody(
     use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
@@ -132,13 +139,13 @@ ui <- dashboardPage(
                            selectizeInput("selectVar",
                                           "Select Variable:",
                                           choices = vars,
-                                          selected = "TOTAL FP X"),
+                                          selected = "TOTAL FANTASY POINTS EXP"),
                            checkboxInput("pivot_trendlines", label = "Display Trendlines", value = TRUE)
                     ),
                     column(width = 4,
                            pickerInput("selectTeam",
                                        "Select Teams:",
-                                       choices = sort(unique(epdata$Team)),
+                                       choices = sort(unique(epdata$team)),
                                        selected = NULL,
                                        multiple = TRUE,
                                        options = list(`actions-box` = TRUE,
@@ -154,12 +161,12 @@ ui <- dashboardPage(
                     column(width = 4,
                            pickerInput("selectSeason",
                                        "Select Seasons:",
-                                       choices = rev(sort(unique(epdata$Season))),
-                                       selected = c("2020"),
+                                       choices = rev(sort(unique(epdata$season))),
+                                       selected = nflreadr::most_recent_season(),
                                        multiple = TRUE),
                            pickerInput("selectPlayers",
                                        "Select Players:",
-                                       choices = sort(unique(epdata$Name)),
+                                       choices = sort(unique(epdata$name)),
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE),
@@ -205,7 +212,7 @@ ui <- dashboardPage(
                     column(width = 4,
                            pickerInput("selectTeam2",
                                        "Select Teams:",
-                                       choices = sort(unique(epdata$Team)),
+                                       choices = sort(unique(epdata$team)),
                                        selected = "SEA",
                                        multiple = TRUE,
                                        options = list(`actions-box` = TRUE,
@@ -220,15 +227,15 @@ ui <- dashboardPage(
                     column(width = 3,
                            pickerInput("selectSeason2",
                                        "Select Weeks:",
-                                       choices = epdata %>% arrange(-Season, -Week) %>% select(week_season) %>% distinct() %>% pull(),
+                                       choices = epdata %>% arrange(-season, -week) %>% select(week_season) %>% distinct() %>% pull(),
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE),                                       
-                                       selected = epdata %>% filter(Season == "2020") %>% select(week_season) %>% distinct() %>% pull(),
+                                       selected = epdata %>% filter(season == nflreadr::most_recent_season()) %>% select(week_season) %>% distinct() %>% pull(),
                                        multiple = TRUE),
                            pickerInput("selectPlayers2",
                                        "Select Players:",
-                                       choices = sort(unique(epdata$Name)),
+                                       choices = sort(unique(epdata$name)),
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE),
@@ -252,32 +259,38 @@ ui <- dashboardPage(
                            selectizeInput("selectVar2",
                                           "Select Variable:",
                                           choices = vars2,
-                                          selected = "PASS TD TEAM"),
+                                          selected = "PASS TOUCHDOWN TEAM"),
                            conditionalPanel(
                              condition = "input.rate_stats",
                              selectizeInput("denomStat",
                                             "Divided by:",
-                                            choices = c("GAMES","RUSH YD TEAM","RUSH ATT TEAM",
-                                                        "PASS YD TEAM","PASS ATT TEAM","PASS COMP TEAM",
-                                                        "REC YD TEAM","TOTAL YD TEAM"),
-                                            selected = "PASS YD TEAM"))),
+                                            choices = c("GAMES",
+                                                        "RUSH YARDS GAINED TEAM",
+                                                        "RUSH ATTEMPT TEAM",
+                                                        "PASS YARDS GAINED TEAM",
+                                                        "PASS ATTEMPT TEAM",
+                                                        "PASS COMPLETIONS TEAM",
+                                                        "REC YARDS GAINED TEAM",
+                                                        "TOTAL YARDS GAINED TEAM"),
+                                            selected = "PASS YARDS GAINED TEAM"))),
                     column(width=1,
                            checkboxInput("rate_stats", label = "Rate Stats", value = FALSE)),
                     column(width=4,
                            pickerInput("selectTeam3",
                                        "Select Teams:",
-                                       choices = sort(unique(season_data$Team)),
+                                       choices = sort(unique(season_data$team)),
                                        options = list(`actions-box` = TRUE,
                                                       `selected-text-format`= "count > 1",
                                                       `live-search` = TRUE,
                                                       `max-options` = 5),
-                                       selected = c("SEA","GB","KC","BAL"),
+                                       selected = c("LAC","GB","KC","BAL"),
                                        multiple = TRUE)),
                     column(width = 4,
                            pickerInput("selectSeason3",
                                        "Select Seasons:",
-                                       choices = rev(sort(unique(season_data$Season))),
-                                       selected = c("2017","2018","2019"),
+                                       choices = rev(sort(unique(season_data$season))),
+                                       selected = seq(nflreadr:::most_recent_season()-3,
+                                                      nflreadr:::most_recent_season()),
                                        multiple = TRUE))
                     
                   )
@@ -306,7 +319,7 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
   
-  random_team <- sample(unique(epdata$Team),1)
+  random_team <- sample(unique(epdata$team),1)
   updatePickerInput(session,"selectTeam",selected = random_team)
   updatePickerInput(session,"selectTeam2",selected = random_team)
 
@@ -314,10 +327,10 @@ server <- function(input, output, session) {
   
   weeklyEP <- reactive({
     epdata %>%
-      filter(Team %in% input$selectTeam,
-             Pos %in% input$selectPos,
-             Season %in% input$selectSeason) %>%
-      select(Season, Week, week_season, week_season_num, gsis_id, Name, Team, Pos, inputVar())
+      filter(team %in% input$selectTeam,
+             pos %in% input$selectPos,
+             season %in% input$selectSeason) %>%
+      select(season, week, week_season, week_season_num, player_id, name, team, pos, inputVar())
 
   })
   
@@ -335,20 +348,20 @@ server <- function(input, output, session) {
     req(input$selectPlayers)
     
     weeklyEP() %>% 
-      filter(Name %in% input$selectPlayers)
+      filter(name %in% input$selectPlayers)
   })
   
   weekPivot <- reactive({
     weeklyEP_playerfilter() %>%
       arrange(week_season_num) %>%
-      select(-week_season_num, -Week, -Season) %>%
-      group_by(gsis_id) %>%
+      select(-week_season_num, -week, -season) %>%
+      group_by(player_id) %>%
       mutate(Total = sum(.data[[inputVar()]], na.rm = TRUE),
              Average = mean(.data[[inputVar()]], na.rm = TRUE)) %>%
       pivot_wider(names_from = week_season,
                   values_from = inputVar()) %>%
       ungroup() %>%
-      select(Name, Team, Pos, contains("Week"), Total, Average) %>%
+      select(name, team, pos, contains("week"), Total, Average) %>%
       mutate_if(is.numeric, round, digits = 1) %>%
       arrange(desc(Average))
   })
@@ -358,10 +371,10 @@ server <- function(input, output, session) {
     req(input$selectTeam)
     
     pivotgraph_data <- weeklyEP_playerfilter() %>%
-      group_by(gsis_id) %>%
+      group_by(player_id) %>%
       mutate(player_weeks = n()) %>%
       ungroup() %>%
-      group_by(Season, Week, week_season) %>%
+      group_by(season, week, week_season) %>%
       mutate(week_season_num = cur_group_id(),
              week_season_num_smooth = case_when(player_weeks > 2 ~ week_season_num,
                                          TRUE ~ 0L)) %>%
@@ -371,7 +384,7 @@ server <- function(input, output, session) {
     #plot_breaks <- unique(pivotgraph_data$week_season)
     
     pivotgraph_data %>% 
-      ggplot(aes(x = week_season, y = .data[[inputVar()]], color = Name)) +
+      ggplot(aes(x = week_season, y = .data[[inputVar()]], color = name)) +
       geom_point(size = 3) +
       theme_bw() + 
       labs(x=element_blank(), y=input$selectVar, title=paste0("Weekly Summary \n",input$selectVar)) +
@@ -416,6 +429,9 @@ server <- function(input, output, session) {
   
   output$teamPivot <- renderReactable({
     weekPivot() %>% 
+      rename(Name = name,
+             Team = team,
+             Pos = pos) %>% 
       reactable(
         defaultColDef = colDef(
           #header = function(value) gsub("\\,.*", "", value),
@@ -461,67 +477,67 @@ server <- function(input, output, session) {
                           # "Rec Stats" = rlang::exprs(starts_with("rec")),
                           # "Total Stats" = rlang::exprs(starts_with("total")),
                           # "AY Stats" = rlang::exprs(starts_with("rec"), starts_with("total"), starts_with("pass"))
-                          "Exp Points" = c("total_fp_x", "total_yd_x", "total_td_x",
-                                           "pass_fp_x","pass_comp_x","pass_yd_x","pass_td_x",
-                                           "rec_comp_x","rec_fp_x","rec_yd_x","rec_td_x",
-                                           "rush_fp_x","rush_yd_x","rush_td_x"),
-                          "Pass Stats" = c("pass_fp","pass_fp_x","pass_fp_diff",
-                                           "pass_att","pass_comp","pass_comp_x","pass_comp_diff",
-                                           "pass_ay","pass_yd","pass_yd_x","pass_yd_diff",
-                                           "pass_td","pass_td_x","pass_td_diff"),
-                          "Rush Stats" = c("rush_fp","rush_fp_x","rush_fp_diff",
-                                           "rush_att","rush_yd","rush_yd_x","rush_yd_diff",
-                                           "rush_td","rush_td_x","rush_td_diff"),
-                          "Rec Stats" = c("rec_fp","rec_fp_x","rec_fp_diff",
-                                          "rec_tar","rec_comp","rec_comp_x","rec_comp_diff",
-                                          "rec_ay","rec_yd","rec_yd_x","rec_yd_diff",
-                                          "rec_td","rec_td_x","rec_td_diff"),
-                          "Total Stats" = c("total_fp","total_fp_x","total_fp_diff",
-                                            "total_yd","total_yd_x","total_yd_diff",
-                                            "total_td","total_td_x","total_td_diff"),
-                          "AY Stats" = c("rec_comp","rec_tar","rec_yd","rec_ay","rec_td",
-                                         "pass_ay_team","pass_att_team",
-                                         "total_fp_x","total_fp_team_x",
-                                         "total_fp","total_fp_team"))
+                          "Exp Points" = c("total_fantasy_points_exp", "total_yards_gained_exp", "total_touchdown_exp",
+                                           "pass_fantasy_points_exp","pass_completions_exp","pass_yards_gained_exp","pass_touchdown_exp",
+                                           "receptions_exp","rec_fantasy_points_exp","rec_yards_gained_exp","rec_touchdown_exp",
+                                           "rush_fantasy_points_exp","rush_yards_gained_exp","rush_touchdown_exp"),
+                          "Pass Stats" = c("pass_fantasy_points","pass_fantasy_points_exp","pass_fantasy_points_diff",
+                                           "pass_attempt","pass_completions","pass_completions_exp","pass_completions_diff",
+                                           "pass_air_yards","pass_yards_gained","pass_yards_gained_exp","pass_yards_gained_diff",
+                                           "pass_touchdown","pass_touchdown_exp","pass_touchdown_diff"),
+                          "Rush Stats" = c("rush_fantasy_points","rush_fantasy_points_exp","rush_fantasy_points_diff",
+                                           "rush_attempt","rush_yards_gained","rush_yards_gained_exp","rush_yards_gained_diff",
+                                           "rush_touchdown","rush_touchdown_exp","rush_touchdown_diff"),
+                          "Rec Stats" = c("rec_fantasy_points","rec_fantasy_points_exp","rec_fantasy_points_diff",
+                                          "rec_attempt","receptions","receptions_exp","receptions_diff",
+                                          "rec_air_yards","rec_yards_gained","rec_yards_gained_exp","rec_yards_gained_diff",
+                                          "rec_touchdown","rec_touchdown_exp","rec_touchdown_diff"),
+                          "Total Stats" = c("total_fantasy_points","total_fantasy_points_exp","total_fantasy_points_diff",
+                                            "total_yards_gained","total_yards_gained_exp","total_yards_gained_diff",
+                                            "total_touchdown","total_touchdown_exp","total_touchdown_diff"),
+                          "AY Stats" = c("receptions","rec_attempt","rec_yards_gained","rec_air_yards","rec_touchdown",
+                                         "pass_air_yards_team","pass_attempt_team",
+                                         "total_fantasy_points_exp","total_fantasy_points_exp_team",
+                                         "total_fantasy_points","total_fantasy_points_team"))
     
     arrange_field <- switch(input$selectCol,
-                          "Exp Points" = rlang::exprs(total_fp_x),
-                          "Pass Stats" =  rlang::exprs(pass_fp_x),
-                          "Rush Stats" =  rlang::exprs(rush_fp_x),
-                          "Rec Stats" =  rlang::exprs(rec_fp_x),
-                          "Total Stats" =  rlang::exprs(total_fp_x),
+                          "Exp Points" = rlang::exprs(total_fantasy_points_exp),
+                          "Pass Stats" =  rlang::exprs(pass_fantasy_points_exp),
+                          "Rush Stats" =  rlang::exprs(rush_fantasy_points_exp),
+                          "Rec Stats" =  rlang::exprs(rec_fantasy_points_exp),
+                          "Total Stats" =  rlang::exprs(total_fantasy_points_exp),
                           "AY Stats" = rlang::exprs(WOPR))
     
     epdata %>%
-      filter((Team %in% input$selectTeam2),
-             (Pos %in% input$selectPos2),
+      filter((team %in% input$selectTeam2),
+             (pos %in% input$selectPos2),
              week_season %in% input$selectSeason2) %>%
       {if (input$selectCol == "AY Stats")
-        select(., Name, Season, Week, Team, Pos, field_names)
-        else select(., Name, Season, Week, Team, Pos, sort(field_names),
+        select(., name, season, week, team, pos, field_names)
+        else select(., name, season, week, team, pos, sort(field_names),
                     -contains("_team"), -contains("proxy"))} %>%
       {if (input$selectCol == "AY Stats")
-        group_by(., Name, Team, Pos) %>% 
+        group_by(., name, team, pos) %>% 
           summarise(games = n(),
-                    rec_comp = sum(rec_comp, na.rm = TRUE),
-                    rec_tar =  sum(rec_tar, na.rm = TRUE),
-                    rec_yd = sum(rec_yd, na.rm = TRUE),
-                    rec_ay = sum(rec_ay, na.rm = TRUE),
-                    rec_td = sum(rec_td, na.rm = TRUE),
-                    rec_adot = sum(rec_ay, na.rm = TRUE) / sum(rec_tar, na.rm = TRUE),
-                    rec_ay_share = sum(rec_ay, na.rm = TRUE) / sum(pass_ay_team, na.rm = TRUE),
-                    rec_tgt_share = sum(rec_tar, na.rm = TRUE) / sum(pass_att_team, na.rm = TRUE),
-                    WOPR = 1.5*sum(rec_tar, na.rm = TRUE) / sum(pass_att_team, na.rm = TRUE) + 0.7*sum(rec_ay, na.rm = TRUE) / sum(pass_ay_team, na.rm = TRUE),
-                    RACR = sum(rec_yd, na.rm = TRUE) / sum(rec_ay, na.rm = TRUE),
-                    YPTPA = sum(rec_yd, na.rm = TRUE) / sum(pass_att_team, na.rm = TRUE),
-                    total_fp_x_share = sum(total_fp_x, na.rm = TRUE) / sum(total_fp_team_x, na.rm = TRUE),
-                    total_fp_share = sum(total_fp, na.rm = TRUE) / sum(total_fp_team, na.rm = TRUE))
+                    receptions = sum(receptions, na.rm = TRUE),
+                    rec_attempt =  sum(rec_attempt, na.rm = TRUE),
+                    rec_yards_gained = sum(rec_yards_gained, na.rm = TRUE),
+                    rec_air_yards = sum(rec_air_yards, na.rm = TRUE),
+                    rec_touchdown = sum(rec_touchdown, na.rm = TRUE),
+                    rec_adot = sum(rec_air_yards, na.rm = TRUE) / sum(rec_attempt, na.rm = TRUE),
+                    rec_air_yards_share = sum(rec_air_yards, na.rm = TRUE) / sum(pass_air_yards_team, na.rm = TRUE),
+                    rec_tgt_share = sum(rec_attempt, na.rm = TRUE) / sum(pass_attempt_team, na.rm = TRUE),
+                    WOPR = 1.5*sum(rec_attempt, na.rm = TRUE) / sum(pass_attempt_team, na.rm = TRUE) + 0.7*sum(rec_air_yards, na.rm = TRUE) / sum(pass_air_yards_team, na.rm = TRUE),
+                    RACR = sum(rec_yards_gained, na.rm = TRUE) / sum(rec_air_yards, na.rm = TRUE),
+                    YPTPA = sum(rec_yards_gained, na.rm = TRUE) / sum(pass_attempt_team, na.rm = TRUE),
+                    total_fantasy_points_exp_share = sum(total_fantasy_points_exp, na.rm = TRUE) / sum(total_fantasy_points_exp_team, na.rm = TRUE),
+                    total_fantasy_points_share = sum(total_fantasy_points, na.rm = TRUE) / sum(total_fantasy_points_team, na.rm = TRUE))
         else if (input$weeklyRadio == "Weekly Average")
-          group_by(., Name, Team, Pos) %>%
+          group_by(., name, team, pos) %>%
           summarise(games = n(),
                     across(field_names, ~mean(.x, na.rm = TRUE))) 
         else if (input$weeklyRadio == "Totals")
-          group_by(., Name, Team, Pos) %>%
+          group_by(., name, team, pos) %>%
           summarise(games = n(),
                     across(field_names, ~sum(.x, na.rm = TRUE)))
         else .} %>% 
@@ -537,59 +553,62 @@ server <- function(input, output, session) {
     input$selectPos2
     input$selectSeason2},{
       updatePickerInput(session, 'selectPlayers2',
-                        choices = weeklyEP2()$Name,
-                        selected = weeklyEP2()$Name)
+                        choices = weeklyEP2()$name,
+                        selected = weeklyEP2()$name)
     })
   
   weeklyEP2_playerfilter <- reactive({
     req(input$selectPlayers2)
     
     weeklyEP2() %>% 
-      filter(Name %in% input$selectPlayers2)
+      filter(name %in% input$selectPlayers2)
   })
   
   output$table <- renderReactable({
     
     colGroupSwitch <- switch(input$selectCol,
                           "Exp Points" = list(
-                            colGroup(name = "Total Expected", columns = c("total_fp_x", "total_yd_x", "total_td_x")),
-                            colGroup(name = "Expected Passing", columns = c("pass_fp_x","pass_comp_x","pass_yd_x","pass_td_x")),
-                            colGroup(name = "Expected Receiving", columns = c("rec_comp_x","rec_fp_x","rec_yd_x","rec_td_x")),
-                            colGroup(name = "Expected Rushing", columns = c("rush_fp_x","rush_yd_x","rush_td_x"))),
+                            colGroup(name = "Total Expected", columns = c("total_fantasy_points_exp", "total_yards_gained_exp", "total_touchdown_exp")),
+                            colGroup(name = "Expected Passing", columns = c("pass_fantasy_points_exp","pass_completions_exp","pass_yards_gained_exp","pass_touchdown_exp")),
+                            colGroup(name = "Expected Receiving", columns = c("receptions_exp","rec_fantasy_points_exp","rec_yards_gained_exp","rec_touchdown_exp")),
+                            colGroup(name = "Expected Rushing", columns = c("rush_fantasy_points_exp","rush_yards_gained_exp","rush_touchdown_exp"))),
                           "Pass Stats" = list(
-                            colGroup(name = "Fantasy Points", columns = c("pass_fp","pass_fp_x","pass_fp_diff")),
-                            colGroup(name = "Completions", columns = c("pass_comp","pass_comp_x","pass_comp_diff")),
-                            colGroup(name = "Pass Yards", columns = c("pass_ay","pass_yd","pass_yd_x","pass_yd_diff")),
-                            colGroup(name = "Touchdowns", columns = c("pass_td","pass_td_x","pass_td_diff"))),
+                            colGroup(name = "Fantasy Points", columns = c("pass_fantasy_points","pass_fantasy_points_exp","pass_fantasy_points_diff")),
+                            colGroup(name = "Completions", columns = c("pass_completions","pass_completions_exp","pass_completions_diff")),
+                            colGroup(name = "Pass Yards", columns = c("pass_air_yards","pass_yards_gained","pass_yards_gained_exp","pass_yards_gained_diff")),
+                            colGroup(name = "Touchdowns", columns = c("pass_touchdown","pass_touchdown_exp","pass_touchdown_diff"))),
                           "Rush Stats" = list(
-                            colGroup(name = "Fantasy Points", columns = c("rush_fp","rush_fp_x","rush_fp_diff")),
-                            colGroup(name = "Rush Yards", columns = c("rush_yd","rush_yd_x","rush_yd_diff")),
-                            colGroup(name = "Touchdowns", columns = c("rush_td","rush_td_x","rush_td_diff"))),
+                            colGroup(name = "Fantasy Points", columns = c("rush_fantasy_points","rush_fantasy_points_exp","rush_fantasy_points_diff")),
+                            colGroup(name = "Rush Yards", columns = c("rush_yards_gained","rush_yards_gained_exp","rush_yards_gained_diff")),
+                            colGroup(name = "Touchdowns", columns = c("rush_touchdown","rush_touchdown_exp","rush_touchdown_diff"))),
                           "Rec Stats" = list(
-                            colGroup(name = "Fantasy Points", columns = c("rec_fp","rec_fp_x","rec_fp_diff")),
-                            colGroup(name = "Catches", c("rec_comp","rec_comp_x","rec_comp_diff")),
-                            colGroup(name = "Rec Yards", c("rec_ay","rec_yd","rec_yd_x","rec_yd_diff")),
-                            colGroup(name = "Touchdowns", c("rec_td","rec_td_x","rec_td_diff"))),
+                            colGroup(name = "Fantasy Points", columns = c("rec_fantasy_points","rec_fantasy_points_exp","rec_fantasy_points_diff")),
+                            colGroup(name = "Catches", c("receptions","receptions_exp","receptions_diff")),
+                            colGroup(name = "Rec Yards", c("rec_air_yards","rec_yards_gained","rec_yards_gained_exp","rec_yards_gained_diff")),
+                            colGroup(name = "Touchdowns", c("rec_touchdown","rec_touchdown_exp","rec_touchdown_diff"))),
                           "Total Stats" = list(
-                            colGroup(name = "Fantasy Points", columns = c("total_fp","total_fp_x","total_fp_diff")),
-                            colGroup(name = "Yards", columns = c("total_yd","total_yd_x","total_yd_diff")),
-                            colGroup(name = "Touchdowns", columns = c("total_td","total_td_x","total_td_diff")))
+                            colGroup(name = "Fantasy Points", columns = c("total_fantasy_points","total_fantasy_points_exp","total_fantasy_points_diff")),
+                            colGroup(name = "Yards", columns = c("total_yards_gained","total_yards_gained_exp","total_yards_gained_diff")),
+                            colGroup(name = "Touchdowns", columns = c("total_touchdown","total_touchdown_exp","total_touchdown_diff")))
     )
     
-    weeklyEP2_playerfilter() %>% 
+    weeklyEP2_playerfilter() %>%
+      rename(Name = name,
+             Team = team,
+             Pos = pos) %>%
       reactable(
         defaultColDef = colDef(
           #header = function(value) str_to_upper(gsub("_", " ", value, fixed = TRUE)),
-          header = function(value) case_when(input$selectCol == "Exp Points" & str_detect(value, "fp") ~ "FPs",
-                                             input$selectCol == "Exp Points" & str_detect(value, "yd") ~ "Yards",
-                                             input$selectCol == "Exp Points" & str_detect(value, "td") ~ "TDs",
+          header = function(value) case_when(input$selectCol == "Exp Points" & str_detect(value, "fantasy_points") ~ "FPs",
+                                             input$selectCol == "Exp Points" & str_detect(value, "yards") ~ "Yards",
+                                             input$selectCol == "Exp Points" & str_detect(value, "touchdown") ~ "TDs",
                                              input$selectCol == "Exp Points" & str_detect(value, "comp") ~ "Comp",
-                                             input$selectCol != "AY Stats" & str_detect(value, "_x") ~ "Exp",
+                                             input$selectCol != "AY Stats" & str_detect(value, "_exp") ~ "Exp",
                                              input$selectCol != "AY Stats" & str_detect(value, "_diff") ~ "Diff",
-                                             input$selectCol != "AY Stats" & str_detect(value, "ay") ~ "AYs",
-                                             input$selectCol != "AY Stats" & str_detect(value, "att") ~ "Attempts",
+                                             input$selectCol != "AY Stats" & str_detect(value, "air_yards") ~ "AYs",
+                                             input$selectCol != "AY Stats" & str_detect(value, "attempt") ~ "Attempts",
                                              input$selectCol != "AY Stats" & str_detect(value, "tar") ~ "Tar",
-                                             input$selectCol != "AY Stats" & !(value %in% c("Name","Games","Week","Team","Pos","Season")) ~ "Actual",
+                                             input$selectCol != "AY Stats" & !(value %in% c("Name","Week","Team","Pos","Season")) ~ "Actual",
                                              input$selectCol == "AY Stats" ~ str_to_upper(gsub("_", " ", value, fixed = TRUE)),                            
                                              TRUE ~ value),
           cell = function(value) format(value, nsmall = 1),
@@ -628,14 +647,14 @@ server <- function(input, output, session) {
     #aspect.ratio = 1/asp_ratio
     
     season_data %>% 
-      filter(Season %in% input$selectSeason3,
-             Team %in% input$selectTeam3) %>% 
-      {if (input$rate_stats) ggplot(., aes(.data[[paste0(inputVar2(),'_x')]] / .data[[inputDenom()]],
+      filter(season %in% input$selectSeason3,
+             team %in% input$selectTeam3) %>% 
+      {if (input$rate_stats) ggplot(., aes(.data[[str_replace(inputVar2(),'_team', '_exp_team')]] / .data[[inputDenom()]],
                                           .data[[inputVar2()]]  / .data[[inputDenom()]],
-                                          group = Team))
-        else ggplot(., aes(.data[[paste0(inputVar2(),'_x')]], .data[[inputVar2()]], group = Team)) } +
+                                          group = team))
+        else ggplot(., aes(.data[[str_replace(inputVar2(),'_team', '_exp_team')]], .data[[inputVar2()]], group = team)) } +
       geom_image(aes(image = team_logo_wikipedia), size = 0.05, by = "width", asp = asp_ratio) +
-      geom_text_repel(aes(label = Season),force = 15, size=6, point.padding = 1.5) +
+      geom_text_repel(aes(label = season),force = 15, size=6, point.padding = 1.5) +
       #geom_point(aes(color=as.factor(Team), size=as.factor(Season))) +
       #geom_path() +
       geom_abline() +

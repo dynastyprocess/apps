@@ -25,6 +25,7 @@ ui_sidebar <- function(...){
                             opacity = 0.8,
                             url = "https://dynastyprocess.com",
                             expand_on_hover = TRUE,
+                            sidebar_collapsed = TRUE,
                             src = "https://avatars2.githubusercontent.com/u/63691873?s=400&u=d9289a2540799f19ca6d8ad866e219ee2d602ba9&v=4",
                             bs4Dash::sidebarMenu(...))
 }
