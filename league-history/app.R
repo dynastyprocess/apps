@@ -3,7 +3,6 @@ options(ffscrapr.cache = "filesystem")
 suppressPackageStartupMessages({
   library(ffscrapr)
   library(ffpros)
-  library(ffsimulator)
   library(nflreadr)
   library(tidyverse)
   library(gt)
@@ -14,56 +13,48 @@ suppressPackageStartupMessages({
   library(shiny)
   library(bs4Dash)
   library(shinyWidgets)
+  library(gfonts)
+  library(waiter)
   
 })
 
 options(warn=1, dplyr.summarise.inform = FALSE)
 
-# DATA PREP --------------------------------------------------------------
-
 # UI section --------------------------------------------------------------
 ui <- dashboardPage(
-  sidebar_collapsed = TRUE,
   title = "League History - DynastyProcess.com",
-  navbar = ui_header("League History App"),
+  header = ui_header("League History App"),
   sidebar = ui_sidebar(
-    menuItem('Weekly', tabName = 'history', icon = 'quidditch')
+    menuItem('History', tabName = 'history', icon = shiny::icon('table')),
+    external_menuItem("More by DynastyProcess", "https://dynastyprocess.com", icon = "cloud")
   ),
   dashboardBody(
-    # use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
-    # tags$style(HTML("#selectColBox {overflow:auto;}")),
+    use_font("fira-sans-condensed", "www/css/fira-sans-condensed.css"),
+    use_waiter(),
     tabItems(
       tabItem(tabName = 'history',
-              h1('Roster Breakdown', style = "padding-left:10px;"),
+              h1('League History', style = "padding-left:10px;"),
               box(title = "Inputs",
                   status = "danger",
                   width = 12,
                   fluidRow(
                     column(width = 4,
                            selectizeInput("select_platform",
-                                          "Select Playform:",
-                                          choices = c("MFL" = "mfl",
-                                                      "Sleeper" = "sleeper",
-                                                      "Fleaflicker" = "fleaflicker",
-                                                      "ESPN" = "espn"),
+                                          "Select Platform:",
+                                          choices = c("Sleeper" = "sleeper"),
                                           multiple = FALSE,
-                                          selected = "fleaflicker")
+                                          selected = "sleeper")
                     ),
                     column(width = 4,
-                           textInput("league_id", label = "Enter League ID", value = 312861)),
+                           textInput("league_id", label = "Enter League ID",
+                                     value = "786958282513362944")),
                     column(width = 4,
                            actionButton("load_data",
                                         "Load League",
                                         class = "btn-success")))))),
     box(width = 12,
-        column(width = 4,
-               selectizeInput("select_team",
-                              "Select Team:",
-                              choices = c(),
-                              multiple = FALSE,
-                              selected = NULL)),
         fluidRow(width = 12,
-                 gt_output("team_table")))
+                 gt_output("league_table")))
   )
 )
 
@@ -72,94 +63,143 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
   
-  
-  league_conn <- reactiveVal()
-  rosters <- reactiveVal()
+  input_connection <- reactiveVal()
+  league_df <- reactiveVal()
   
   #react on enter button
   observeEvent({input$load_data},{
-    league_conn(load_conn(input$select_platform, input$league_id))
     
-    rosters(combine_sources(league_conn(), input$select_platform))
+    waiter_show(
+      html = spin_dots(),
+      color = transparent(0.5))
     
-    updateSelectizeInput(session, 'select_team',
-                         choices = rosters() %>% pull(franchise_name) %>% unique(),
-                         selected = rosters() %>%
-                           filter(franchise_name != "Free Agents") %>% 
-                           sample_n(1) %>%
-                           pull(franchise_name))
+    input_connection <- reactive({
+      ffscrapr::ff_connect(platform = input$select_platform,
+                           league_id = input$league_id,
+                           season = 2022,
+                           rate_limit_number = 1000,
+                           rate_limit_seconds = 60)
+    })
     
-  })
+    league_df <- reactive({
+      get_league_history(platform = input$select_platform,
+                         league_id = input$league_id,
+                         conn = input_connection())
+    })
+    
+    league_info <- reactive({
+      ff_league(input_connection())
+    })
+    
+    year_range <- reactive({
+      league_info() %>%
+        separate(col = years_active,
+                 into = c("min_year", "max_year"),
+                 sep = "-")
+    })
+    
+    output$league_table <- render_gt({
 
-  output$team_table <- render_gt({
-    req(input$select_team)
+      league_df() %>% 
+        gt() %>%
+        tab_header(title = glue::glue("{league_info()$league_name} {league_info()$years_active}")) %>%
+        cols_label(user_name = "Team",
+                   emoji_collase = glue::glue("{year_range()$min_year}\U2192{year_range()$max_year}"),
+                   allplay_winpct = "AP Win %",
+                   h2h_winpct = "Win %",
+                   luck_pct = "Luck %",
+                   regular_season_record = "Record",
+                   optimal_start_percent = "PP %",
+                   
+                   playoff_record = "Record",
+                   playoff_h2h_winpct = "Win %",
+                   
+                   first_round_picks = "Firsts",
+                   total_picks = "Total",
+                   value_by_season = "Value",
+                   trade_count = "Trades",
+                   players_added = "Adds",
+                   players_added_by_season = "History") %>% 
+        fmt_percent(columns = c(allplay_winpct, h2h_winpct, luck_pct, optimal_start_percent, playoff_h2h_winpct),
+                    decimals = 1) %>%
+        tab_spanner(label = "Regular Season",
+                    columns = c(allplay_winpct, optimal_start_percent, regular_season_record, h2h_winpct, luck_pct)) %>%
+        tab_spanner(label = "Playoffs",
+                    columns = c(playoff_record, playoff_h2h_winpct)) %>%
+        tab_spanner(label = "Picks",
+                    columns = c(first_round_picks, total_picks, value_by_season)) %>% 
+        tab_spanner(label = "Transactions",
+                    columns = c(trade_count, players_added, players_added_by_season)) %>% 
+        
+        cols_align(align = "right",
+                   columns = c(emoji_collase)) %>%
+        tab_style(style = cell_text(whitespace = "nowrap"),
+                  locations = cells_body(columns = emoji_collase)) %>% 
+        gt_plt_sparkline(value_by_season,
+                         type = "shaded") %>% 
+        gt_plt_sparkline(players_added_by_season,
+                         type = "shaded") %>% 
+        data_color(
+          columns = c(optimal_start_percent,
+                      h2h_winpct,
+                      allplay_winpct,
+                      luck_pct,
+                      playoff_h2h_winpct,
+                      first_round_picks,
+                      total_picks,
+                      trade_count,
+                      players_added),
+          colors = scales::col_factor(
+            brewer.pal(11,'PRGn')[3:8],
+            domain = NULL
+          )) %>%
+        cols_move(columns = c(emoji_collase,
+                              allplay_winpct,
+                              h2h_winpct,
+                              luck_pct,
+                              regular_season_record,
+                              optimal_start_percent,
+                              playoff_record,
+                              playoff_h2h_winpct,
+                              first_round_picks,
+                              total_picks,
+                              value_by_season,
+                              trade_count,
+                              players_added,
+                              players_added_by_season),
+                  after = user_name) %>% 
+        tab_footnote(footnote = "What would your win rate be if you played every team each week?",
+                     locations = cells_column_labels(columns = allplay_winpct)) %>% 
+        tab_footnote(footnote = "Difference between your win rate and all play win rate",
+                     locations = cells_column_labels(columns = luck_pct)) %>%
+        tab_footnote(footnote = "Percentage of potential points",
+                     locations = cells_column_labels(columns = optimal_start_percent)) %>% 
+        tab_footnote(footnote = "Playoff byes counted as 1 win",
+                     locations = cells_column_labels(columns = playoff_record)) %>% 
+        tab_source_note(source_note = emoji_glue(":trophy: Best Team, :2nd_place_medal: 2nd Place, :3rd_place_medal: 3rd Place, :check_mark: Playoffs, :x: Missed Playoffs, :taco: Worst Team, :black_square_button: Didn't Play")) %>% 
+        tab_style(
+          style = list(
+            cell_text(weight = "bold")
+          ),
+          locations = cells_column_spanners(everything())
+        ) %>% 
+        opt_table_lines(extent = "default") %>%
+        tab_options(
+          column_labels.border.top.color = "black",
+          column_labels.border.top.width = px(3),
+          column_labels.border.bottom.color = "black",
+          table_body.hlines.color = "white",
+          table_body.hlines.width = px(0),
+          table.border.bottom.color = "white",
+          table.border.bottom.width = px(3),
+          table_body.border.bottom.color = "black",
+          table.border.top.color = "black",
+          table.border.top.width = px(3)
+        )
+    })
     
-    rosters() %>% 
-      filter(franchise_name == input$select_team) %>% 
-      arrange(position, -total_fantasy_points_exp, ecr) %>%
-      select(-c(franchise_name, team)) %>% 
-      gt() %>%
-      tab_header(title = "Start/Sit Guide") %>%
-      cols_label(player_name = "Player",
-                 player_image_url = "",
-                 position = "Position",
-                 team_wordmark = "Team",
-                 total_fantasy_points_exp = "EP",
-                 total_fantasy_points = "PPR",
-                 total_fantasy_points_diff = "Diff",
-                 ovr_rank = "Overall",
-                 pos_rank = "Positional",
-                 ecr = "Consensus",
-                 best = "Best",
-                 worst = "Worst",
-                 projected_points = "Projection",
-                 roster_pct = "Roster %",
-                 practice_status = "Practice",
-                 report_status = "Report",
-                 offense_pct = "Snap Share",
-                 offense_snaps = "Average Snaps"
-                 # snap_data = "Snap Trend"
-                 ) %>%
-      fmt_missing(columns = c(pos_rank, ovr_rank, ecr, best, worst, player_image_url, team_wordmark),
-                  missing_text = "") %>% 
-      fmt_pad_num(columns = c(ecr, projected_points, contains("fantasy_points")), nsmall = 1, gfont = "Fira Mono") %>%
-      fmt_percent(columns = c(roster_pct, offense_pct), decimals = 1) %>% 
-      gt_img_rows(columns = c(player_image_url,team_wordmark), height = 40) %>% 
-      tab_spanner(label = "Rank", columns = c(ovr_rank, pos_rank, ecr, best, worst)) %>%
-      tab_spanner(label = "Injury Report", columns = c(practice_status, report_status)) %>%
-      gt_hulk_col_numeric(columns = c(projected_points, contains("fantasy_points"))) %>% 
-      gt_hulk_col_numeric(columns = ecr, reverse = TRUE) %>%
-      # gt_sparkline(snap_data) %>% 
-      cols_move(columns = c(player_image_url, position, team_wordmark,
-                            total_fantasy_points_exp, total_fantasy_points, total_fantasy_points_diff,
-                            ovr_rank, pos_rank, ecr, best, worst,
-                            projected_points, practice_status, report_status, offense_pct, offense_snaps
-                            # snap_data
-                            ),
-                after = player_name) %>% 
-      cols_align(columns = team_wordmark, align = "center")  %>%
-      tab_style(
-        style = cell_text(font = google_font("Fira Mono"), weight = 800),
-        locations = cells_title(groups = "title")
-      ) %>%
-      tab_style(
-        style = cell_text(
-          size = px(16),
-          color = "darkgrey",
-          font = google_font("Fira Mono"),
-          transform = "uppercase"),
-        locations = cells_column_labels()) %>%
-    tab_style(
-      style = cell_text(
-        size = px(20),
-        color = "darkgrey",
-        font = google_font("Fira Mono"),
-        transform = "uppercase"),
-      locations = cells_column_spanners()) %>%
-      tab_style(
-        style = cell_text(font = google_font("Fira Mono"), weight =  400),
-        locations = cells_body())
   })
+  
   
 }
 
