@@ -151,12 +151,12 @@ get_sleeper_playoffs <- function(league_id, season){
     sleeper_consolation %>% 
     pivot_longer(cols = c(w, l),
                  values_to = "franchise_id") %>% 
-    mutate(playoff_outcome = case_when(p == 1 & name == "w" ~ 7,
-                                       p == 1 & name == "l" ~ 8,
-                                       p == 3 & name == "w" ~ 9,
-                                       p == 3 & name == "l" ~ 10,
-                                       p == 5 & name == "w" ~ 11,
-                                       p == 5 & name == "l" ~ 12,
+    mutate(playoff_outcome = case_when(p == 1 & name == "w" ~ 12,
+                                       p == 1 & name == "l" ~ 11,
+                                       p == 3 & name == "w" ~ 10,
+                                       p == 3 & name == "l" ~ 9,
+                                       p == 5 & name == "w" ~ 8,
+                                       p == 5 & name == "l" ~ 7,
                                        TRUE ~ 99),
     bye_wins = 0,
     wins = 0,
